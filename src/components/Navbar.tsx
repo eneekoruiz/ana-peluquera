@@ -4,8 +4,8 @@ import { Menu, X } from "lucide-react";
 
 const navLinks = [
   { to: "/", label: "Inicio" },
-  { to: "/catalogo", label: "Productos" },
-  { to: "/mis-reservas", label: "Mis Reservas" },
+  { to: "/catalogo", label: "Catálogo" },
+  { to: "/reservar", label: "Reservar Cita" },
 ];
 
 const Navbar = () => {
@@ -36,14 +36,6 @@ const Navbar = () => {
               </Link>
             </li>
           ))}
-          <li>
-            <Link
-              to="/admin"
-              className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Admin
-            </Link>
-          </li>
         </ul>
 
         {/* Mobile toggle */}
@@ -73,15 +65,6 @@ const Navbar = () => {
                 </Link>
               </li>
             ))}
-            <li>
-              <Link
-                to="/admin"
-                onClick={() => setOpen(false)}
-                className="block text-sm font-sans uppercase tracking-widest-plus py-2 text-muted-foreground"
-              >
-                Admin
-              </Link>
-            </li>
           </ul>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
+import { MapPin, Clock, Phone as PhoneIcon } from "lucide-react";
 
 const Home = () => {
   return (
@@ -35,16 +36,19 @@ const Home = () => {
           </ScrollReveal>
 
           <ScrollReveal delay={550}>
-            <div className="mt-12">
-              <Button variant="hero" size="lg" asChild>
-                <Link to="/catalogo">Explora Productos</Link>
+            <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
+              <Button variant="hero" size="lg" className="h-14 px-8 text-base" asChild>
+                <Link to="/reservar">Reservar Cita</Link>
+              </Button>
+              <Button variant="outline" size="lg" className="h-14 px-8 text-base" asChild>
+                <Link to="/catalogo">Ver Catálogo</Link>
               </Button>
             </div>
           </ScrollReveal>
         </div>
       </section>
 
-      {/* Services preview */}
+      {/* Services */}
       <section className="py-20 md:py-28 bg-warm-white">
         <div className="container">
           <ScrollReveal>
@@ -52,21 +56,19 @@ const Home = () => {
               Nuestros Servicios
             </h2>
             <p className="text-center text-sm text-muted-foreground mb-16 max-w-sm mx-auto">
-              Productos profesionales seleccionados para el cuidado experto
+              Atención personalizada con productos profesionales
             </p>
           </ScrollReveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
             {[
-              { title: "Cabello", desc: "Champús, tratamientos y productos de styling profesional" },
-              { title: "Barba", desc: "Aceites, bálsamos y herramientas de cuidado masculino" },
-              { title: "Uñas", desc: "Esmaltes, tratamientos y accesorios de manicura" },
+              { title: "Cabello", desc: "Corte, color, mechas y tratamientos capilares profesionales", icon: "✂️" },
+              { title: "Barba", desc: "Recorte, perfilado y cuidado completo de barba", icon: "🧔" },
+              { title: "Uñas", desc: "Manicura, esmalte gel y tratamientos fortalecedores", icon: "💅" },
             ].map((service, i) => (
               <ScrollReveal key={service.title} delay={i * 120}>
                 <div className="group text-center p-8 bg-background rounded-lg hover:shadow-md transition-shadow duration-300">
-                  <div className="w-16 h-16 rounded-full bg-sand-light mx-auto mb-6 flex items-center justify-center">
-                    <span className="font-serif text-xl text-foreground">{service.title[0]}</span>
-                  </div>
+                  <div className="text-4xl mb-6">{service.icon}</div>
                   <h3 className="font-serif text-xl text-foreground mb-3">{service.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">{service.desc}</p>
                 </div>
@@ -76,18 +78,47 @@ const Home = () => {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* Info */}
       <section className="py-20 md:py-28">
+        <div className="container max-w-2xl">
+          <ScrollReveal>
+            <h2 className="font-serif text-3xl md:text-4xl text-foreground text-center mb-12" style={{ lineHeight: '1.1' }}>
+              Encuéntranos
+            </h2>
+          </ScrollReveal>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {[
+              { icon: MapPin, label: "Dirección", value: "José María Salaberría 33\n20008 Donostia" },
+              { icon: Clock, label: "Horario", value: "L-V: 9:00–19:00\nSáb: 9:00–14:00" },
+              { icon: PhoneIcon, label: "Contacto", value: "943 000 000" },
+            ].map((item, i) => (
+              <ScrollReveal key={item.label} delay={i * 100}>
+                <div className="text-center p-6 bg-card rounded-lg shadow-sm">
+                  <item.icon size={20} className="mx-auto text-sand-dark mb-4" />
+                  <h3 className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mb-3">
+                    {item.label}
+                  </h3>
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{item.value}</p>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-20 md:py-28 bg-warm-white">
         <div className="container text-center">
           <ScrollReveal>
             <h2 className="font-serif text-3xl md:text-4xl text-foreground mb-6" style={{ lineHeight: '1.1' }}>
-              Reserva Tu Producto
+              ¿Lista para tu cita?
             </h2>
             <p className="text-sm text-muted-foreground mb-10 max-w-sm mx-auto">
-              Explora nuestro catálogo y reserva para recoger en el salón. Sin pagos online.
+              Reserva en 3 pasos — sin registro, sin complicaciones
             </p>
-            <Button variant="hero" size="lg" asChild>
-              <Link to="/catalogo">Ver Catálogo</Link>
+            <Button variant="hero" size="lg" className="h-14 px-10 text-base" asChild>
+              <Link to="/reservar">Reservar Ahora</Link>
             </Button>
           </ScrollReveal>
         </div>
