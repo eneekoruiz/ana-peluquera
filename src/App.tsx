@@ -6,9 +6,9 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Home from "./pages/Home";
 import Catalog from "./pages/Catalog";
-import ClientDashboard from "./pages/ClientDashboard";
+import Reservation from "./pages/Reservation";
+import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
-import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,9 +22,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/catalogo" element={<Catalog />} />
-          <Route path="/mis-reservas" element={<ClientDashboard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/reservar" element={<Reservation />} />
+          <Route path="/management-access" element={<AdminLogin />} />
+          <Route path="/management-access/panel" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Footer />
