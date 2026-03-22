@@ -1,5 +1,8 @@
 import { useState } from "react";
 import ScrollReveal from "@/components/ScrollReveal";
+import catalogCabello from "@/assets/catalog-cabello.jpg";
+import catalogBarba from "@/assets/catalog-barba.jpg";
+import catalogUnas from "@/assets/catalog-unas.jpg";
 
 type Category = "Todos" | "Cabello" | "Barba" | "Uñas";
 
@@ -9,6 +12,12 @@ interface Product {
   category: "Cabello" | "Barba" | "Uñas";
   description: string;
 }
+
+const categoryImages: Record<string, string> = {
+  Cabello: catalogCabello,
+  Barba: catalogBarba,
+  "Uñas": catalogUnas,
+};
 
 const mockProducts: Product[] = [
   { id: "1", name: "Champú Reparador Intensivo", category: "Cabello", description: "Fórmula profesional con keratina para cabello dañado" },
@@ -31,25 +40,25 @@ const Catalog = () => {
 
   return (
     <main className="pt-16">
-      <section className="py-16 md:py-24">
+      <section className="py-12 md:py-24">
         <div className="container">
           <ScrollReveal>
-            <h1 className="font-serif text-3xl md:text-4xl text-foreground text-center mb-4" style={{ lineHeight: '1.1' }}>
+            <h1 className="font-serif text-2xl md:text-4xl text-foreground text-center mb-3" style={{ lineHeight: '1.1' }}>
               Catálogo
             </h1>
-            <p className="text-center text-sm text-muted-foreground mb-12 max-w-sm mx-auto">
+            <p className="text-center text-sm text-muted-foreground mb-10 max-w-sm mx-auto">
               Productos profesionales seleccionados por Ana
             </p>
           </ScrollReveal>
 
           {/* Category filters */}
           <ScrollReveal delay={150}>
-            <div className="flex justify-center gap-2 mb-12 flex-wrap">
+            <div className="flex justify-center gap-2 mb-10 flex-wrap">
               {categories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActive(cat)}
-                  className={`px-4 py-2 text-xs font-sans uppercase tracking-widest-plus rounded-md transition-all duration-200 active:scale-95 ${
+                  className={`px-4 py-2.5 text-xs font-sans uppercase tracking-widest-plus rounded-md transition-all duration-200 active:scale-95 ${
                     active === cat
                       ? "bg-foreground text-background"
                       : "bg-secondary text-muted-foreground hover:bg-sand-light"
@@ -61,26 +70,28 @@ const Catalog = () => {
             </div>
           </ScrollReveal>
 
-          {/* Editorial asymmetric grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-8">
+          {/* Editorial grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             {filtered.map((product, i) => (
               <ScrollReveal key={product.id} delay={i * 80}>
                 <div
                   className={`group bg-card rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 ${
-                    i % 3 === 0 ? "sm:col-span-2 md:col-span-1" : ""
+                    i % 5 === 0 ? "sm:col-span-2" : ""
                   }`}
                 >
-                  {/* Image placeholder — editorial style */}
-                  <div className={`bg-sand-light/40 flex items-center justify-center ${
-                    i % 3 === 0 ? "aspect-[16/9] sm:aspect-[21/9]" : "aspect-[4/3]"
-                  }`}>
-                    <span className="font-serif text-5xl text-sand-dark/20">{product.category[0]}</span>
+                  <div className={`overflow-hidden ${i % 5 === 0 ? "aspect-[21/9]" : "aspect-[4/3]"}`}>
+                    <img
+                      src={categoryImages[product.category]}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                      loading="lazy"
+                    />
                   </div>
-                  <div className="p-5">
+                  <div className="p-4 md:p-5">
                     <span className="text-[10px] font-sans uppercase tracking-widest-plus text-muted-foreground">
                       {product.category}
                     </span>
-                    <h3 className="font-serif text-lg text-foreground mt-1 mb-2">{product.name}</h3>
+                    <h3 className="font-serif text-base md:text-lg text-foreground mt-1 mb-1.5">{product.name}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
                   </div>
                 </div>
