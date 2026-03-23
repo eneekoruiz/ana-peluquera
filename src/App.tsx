@@ -6,8 +6,10 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AdminRoute from "@/components/AdminRoute";
 import Home from "./pages/Home";
-import Catalog from "./pages/Catalog";
+import Services from "./pages/Services";
+import Revista from "./pages/Revista";
 import Reservation from "./pages/Reservation";
+import Privacidad from "./pages/Privacidad";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
@@ -22,17 +24,23 @@ const App = () => (
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/catalogo" element={<Catalog />} />
+          <Route path="/servicios" element={<Services />} />
+          <Route path="/revista" element={<Revista />} />
           <Route path="/reservar" element={<Reservation />} />
-          <Route path="/management-access" element={<AdminLogin />} />
+          <Route path="/privacidad" element={<Privacidad />} />
+          <Route path="/gestion-privada-agl" element={<AdminLogin />} />
           <Route
-            path="/management-access/panel"
+            path="/gestion-privada-agl/panel"
             element={
               <AdminRoute>
                 <AdminDashboard />
               </AdminRoute>
             }
           />
+          {/* Legacy routes redirect */}
+          <Route path="/catalogo" element={<Revista />} />
+          <Route path="/management-access" element={<AdminLogin />} />
+          <Route path="/management-access/panel" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Footer />

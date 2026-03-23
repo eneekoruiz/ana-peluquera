@@ -4,8 +4,9 @@ import { Menu, X } from "lucide-react";
 
 const navLinks = [
   { to: "/", label: "Inicio" },
-  { to: "/catalogo", label: "Catálogo" },
-  { to: "/reservar", label: "Reservar Cita" },
+  { to: "/servicios", label: "Servicios" },
+  { to: "/revista", label: "Revista" },
+  { to: "/reservar", label: "Reservar" },
 ];
 
 const Navbar = () => {
@@ -16,9 +17,9 @@ const Navbar = () => {
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border">
       <nav className="container flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2">
-          <span className="font-serif text-2xl tracking-wide text-foreground">AG</span>
-          <span className="hidden sm:inline text-xs font-sans tracking-widest-plus uppercase text-muted-foreground">
-            Beauty Salon
+          <span className="font-serif text-2xl tracking-wide text-foreground">AGL</span>
+          <span className="hidden sm:inline text-[10px] font-sans tracking-widest-plus uppercase text-muted-foreground">
+            Beauty & Wellness
           </span>
         </Link>
 
