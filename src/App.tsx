@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import AdminRoute from "@/components/AdminRoute";
 import Home from "./pages/Home";
 import Catalog from "./pages/Catalog";
 import Reservation from "./pages/Reservation";
@@ -24,7 +25,14 @@ const App = () => (
           <Route path="/catalogo" element={<Catalog />} />
           <Route path="/reservar" element={<Reservation />} />
           <Route path="/management-access" element={<AdminLogin />} />
-          <Route path="/management-access/panel" element={<AdminDashboard />} />
+          <Route
+            path="/management-access/panel"
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Footer />

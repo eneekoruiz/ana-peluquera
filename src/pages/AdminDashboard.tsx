@@ -1,6 +1,6 @@
 import { useState } from "react";
 import ScrollReveal from "@/components/ScrollReveal";
-import { Package, CalendarDays, Lock, Image, FileText, ClipboardList } from "lucide-react";
+import { Package, CalendarDays, Lock, Image, FileText } from "lucide-react";
 import AdminInventory from "@/components/admin/AdminInventory";
 import AdminAppointments from "@/components/admin/AdminAppointments";
 import AdminBlocking from "@/components/admin/AdminBlocking";
@@ -20,31 +20,44 @@ const tabs = [
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>("appointments");
 
+  const handleLogout = () => {
+    localStorage.removeItem("agl-admin-auth");
+    window.location.href = "/management-access";
+  };
+
   return (
     <main className="pt-16">
-      <section className="py-8 md:py-12">
+      <section className="py-6 md:py-12">
         <div className="container">
           <ScrollReveal>
-            <h1 className="font-serif text-2xl md:text-3xl text-foreground mb-1" style={{ lineHeight: "1.1" }}>
-              Panel de Administración
-            </h1>
-            <p className="text-sm text-muted-foreground mb-8">Hola Ana — centro de control de AGL Beauty Salon</p>
+            <div className="flex items-center justify-between mb-1">
+              <h1 className="font-serif text-xl sm:text-2xl md:text-3xl text-foreground" style={{ lineHeight: "1.1" }}>
+                Panel de Administración
+              </h1>
+              <button
+                onClick={handleLogout}
+                className="text-xs font-sans uppercase tracking-wide text-muted-foreground hover:text-destructive transition-colors active:scale-95"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6 sm:mb-8">Hola Ana — centro de control de AGL Beauty Salon</p>
           </ScrollReveal>
 
           {/* Tabs — horizontal scroll on mobile */}
-          <div className="flex gap-1 mb-8 bg-secondary rounded-lg p-1 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1 mb-6 sm:mb-8 bg-secondary rounded-lg p-1 overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 shrink-0 justify-center py-2.5 px-3 text-xs font-sans uppercase tracking-wide rounded-md transition-all duration-200 active:scale-95 ${
+                className={`flex items-center gap-1.5 sm:gap-2 shrink-0 justify-center py-2.5 px-2.5 sm:px-3 text-[10px] sm:text-xs font-sans uppercase tracking-wide rounded-md transition-all duration-200 active:scale-95 ${
                   activeTab === tab.key
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <tab.icon size={14} />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
