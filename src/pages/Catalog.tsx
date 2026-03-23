@@ -40,20 +40,20 @@ const Catalog = () => {
 
   return (
     <main className="pt-16">
-      <section className="py-12 md:py-24">
+      <section className="py-10 md:py-24">
         <div className="container">
           <ScrollReveal>
             <h1 className="font-serif text-2xl md:text-4xl text-foreground text-center mb-3" style={{ lineHeight: '1.1' }}>
               Catálogo
             </h1>
-            <p className="text-center text-sm text-muted-foreground mb-10 max-w-sm mx-auto">
+            <p className="text-center text-sm text-muted-foreground mb-8 sm:mb-10 max-w-sm mx-auto">
               Productos profesionales seleccionados por Ana
             </p>
           </ScrollReveal>
 
           {/* Category filters */}
           <ScrollReveal delay={150}>
-            <div className="flex justify-center gap-2 mb-10 flex-wrap">
+            <div className="flex justify-center gap-2 mb-8 sm:mb-10 flex-wrap">
               {categories.map((cat) => (
                 <button
                   key={cat}
@@ -71,7 +71,7 @@ const Catalog = () => {
           </ScrollReveal>
 
           {/* Editorial grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
             {filtered.map((product, i) => (
               <ScrollReveal key={product.id} delay={i * 80}>
                 <div
@@ -79,7 +79,7 @@ const Catalog = () => {
                     i % 5 === 0 ? "sm:col-span-2" : ""
                   }`}
                 >
-                  <div className={`overflow-hidden ${i % 5 === 0 ? "aspect-[21/9]" : "aspect-[4/3]"}`}>
+                  <div className={`overflow-hidden ${i % 5 === 0 ? "aspect-[16/9] sm:aspect-[21/9]" : "aspect-[4/3]"}`}>
                     <img
                       src={categoryImages[product.category]}
                       alt={product.name}
@@ -87,11 +87,11 @@ const Catalog = () => {
                       loading="lazy"
                     />
                   </div>
-                  <div className="p-4 md:p-5">
+                  <div className="p-3.5 sm:p-4 md:p-5">
                     <span className="text-[10px] font-sans uppercase tracking-widest-plus text-muted-foreground">
                       {product.category}
                     </span>
-                    <h3 className="font-serif text-base md:text-lg text-foreground mt-1 mb-1.5">{product.name}</h3>
+                    <h3 className="font-serif text-[15px] sm:text-base md:text-lg text-foreground mt-1 mb-1">{product.name}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
                   </div>
                 </div>
