@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, forwardRef, type ReactNode } from "react";
 
 interface ScrollRevealProps {
   children: ReactNode;
@@ -7,37 +7,41 @@ interface ScrollRevealProps {
   direction?: "up" | "left" | "fade";
 }
 
-const ScrollReveal = ({ children, className = "", delay = 0, direction = "up" }: ScrollRevealProps) => {
-  const ref = useRef<HTMLDivElement>(null);
+const ScrollReveal = forwardRef<HTMLDivElement, ScrollRevealProps>(
+  ({ children, className = "", delay = 0, direction = "up" }, _ref) => {
+    const innerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    useEffect(() => {
+      const el = innerRef.current;
+      if (!el) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.style.animationDelay = `${delay}ms`;
-          el.classList.add(
-            direction === "left" ? "animate-slide-in-left" :
-            direction === "fade" ? "animate-fade-in" :
-            "animate-reveal-up"
-          );
-          observer.unobserve(el);
-        }
-      },
-      { threshold: 0.15 }
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            el.style.animationDelay = `${delay}ms`;
+            el.classList.add(
+              direction === "left" ? "animate-slide-in-left" :
+              direction === "fade" ? "animate-fade-in" :
+              "animate-reveal-up"
+            );
+            observer.unobserve(el);
+          }
+        },
+        { threshold: 0.15 }
+      );
+
+      observer.observe(el);
+      return () => observer.disconnect();
+    }, [delay, direction]);
+
+    return (
+      <div ref={innerRef} className={`opacity-0 ${className}`}>
+        {children}
+      </div>
     );
+  }
+);
 
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [delay, direction]);
-
-  return (
-    <div ref={ref} className={`opacity-0 ${className}`}>
-      {children}
-    </div>
-  );
-};
+ScrollReveal.displayName = "ScrollReveal";
 
 export default ScrollReveal;
