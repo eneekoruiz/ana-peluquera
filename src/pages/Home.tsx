@@ -1,8 +1,19 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
-import { MapPin, Clock, Phone as PhoneIcon } from "lucide-react";
+import { MapPin, Clock, Phone as PhoneIcon, Star, ArrowRight, Instagram } from "lucide-react";
 import heroImage from "@/assets/hero-salon.jpg";
+
+const testimonials = [
+  { name: "Elena R.", text: "Ana es una artista. Llevo 4 años viniendo y siempre salgo encantada. El ambiente es precioso.", rating: 5 },
+  { name: "Marta I.", text: "La mejor peluquería de Donostia. Profesionalidad, calidez y resultados impecables.", rating: 5 },
+  { name: "Lucía F.", text: "Me encanta que no tenga prisa. Se nota que ama lo que hace. El trato es exquisito.", rating: 5 },
+];
+
+const instagramPosts = Array.from({ length: 6 }, (_, i) => ({
+  id: `ig-${i}`,
+  alt: `Trabajo de Ana González - AGL Beauty #${i + 1}`,
+}));
 
 const Home = () => {
   return (
@@ -19,11 +30,13 @@ const Home = () => {
         </div>
         <div className="container py-10 md:py-20 text-center">
           <ScrollReveal>
-            <span className="font-serif text-5xl sm:text-6xl md:text-8xl tracking-wide text-foreground leading-none block mb-3">AG</span>
+            <span className="font-serif text-5xl sm:text-6xl md:text-8xl tracking-wide text-foreground leading-none block mb-3" style={{ lineHeight: '0.9' }}>
+              AGL
+            </span>
           </ScrollReveal>
           <ScrollReveal delay={150}>
             <h1 className="text-[10px] sm:text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mb-5">
-              Beauty Salon
+              Beauty & Wellness
             </h1>
           </ScrollReveal>
           <ScrollReveal delay={300}>
@@ -31,48 +44,117 @@ const Home = () => {
           </ScrollReveal>
           <ScrollReveal delay={400}>
             <p className="text-base md:text-lg text-muted-foreground font-sans font-light max-w-md mx-auto leading-relaxed mb-1.5">
-              Cuidado profesional del cabello en el corazón de Donostia
+              Cuidado profesional del cabello y bienestar en el corazón de Donostia
             </p>
             <p className="text-sm text-muted-foreground/70 font-sans">
               José María Salaberría 33, San Sebastián
             </p>
           </ScrollReveal>
           <ScrollReveal delay={550}>
-            <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row gap-3 justify-center px-4 sm:px-0">
-              <Button variant="hero" size="lg" className="h-14 px-8 text-base w-full sm:w-auto" asChild>
-                <Link to="/reservar">Reservar Cita</Link>
-              </Button>
-              <Button variant="outline" size="lg" className="h-14 px-8 text-base w-full sm:w-auto" asChild>
-                <Link to="/catalogo">Ver Catálogo</Link>
+            <div className="mt-8 sm:mt-10 px-4 sm:px-0">
+              <Button variant="hero" size="lg" className="h-16 px-10 text-lg w-full sm:w-auto" asChild>
+                <Link to="/reservar">
+                  Reservar Cita
+                  <ArrowRight size={20} className="ml-2" />
+                </Link>
               </Button>
             </div>
           </ScrollReveal>
         </div>
       </section>
 
-      {/* Services */}
+      {/* About Ana */}
       <section className="py-14 md:py-24 bg-warm-white">
-        <div className="container">
+        <div className="container max-w-3xl">
+          <ScrollReveal>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 md:gap-12 items-center">
+              <div className="md:col-span-2">
+                <div className="aspect-[3/4] rounded-lg bg-sand-light/40 overflow-hidden">
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="font-serif text-6xl text-sand-dark/20">AG</span>
+                  </div>
+                </div>
+              </div>
+              <div className="md:col-span-3">
+                <span className="text-[10px] font-sans uppercase tracking-widest-plus text-sand-dark mb-4 block">Sobre Nosotras</span>
+                <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-4" style={{ lineHeight: '1.15' }}>
+                  Ana González
+                </h2>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                  Con más de 15 años de experiencia en el cuidado del cabello, Ana fundó AGL Beauty con una visión clara: 
+                  crear un espacio donde cada clienta se sienta especial. Aquí no hay prisas — cada cita es un momento dedicado 
+                  exclusivamente a ti.
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Formada en las mejores academias de Barcelona y París, Ana combina técnica profesional con un trato 
+                  cercano y personalizado. Porque la belleza empieza por sentirse bien.
+                </p>
+                <div className="mt-6 flex gap-4">
+                  <Button variant="outline" size="sm" className="gap-2" asChild>
+                    <Link to="/servicios">Ver Servicios</Link>
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-2" asChild>
+                    <Link to="/revista">Revista</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="py-14 md:py-24">
+        <div className="container max-w-3xl">
           <ScrollReveal>
             <h2 className="text-center font-serif text-2xl md:text-4xl text-foreground mb-3" style={{ lineHeight: '1.1' }}>
-              Nuestros Servicios
+              Lo Que Dicen Nuestras Clientas
             </h2>
-            <p className="text-center text-sm text-muted-foreground mb-10 md:mb-16 max-w-sm mx-auto">
-              Atención personalizada con productos profesionales
+            <p className="text-center text-sm text-muted-foreground mb-10 md:mb-14 max-w-sm mx-auto">
+              La confianza de quienes nos eligen cada día
             </p>
           </ScrollReveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-3xl mx-auto">
-            {[
-              { title: "Cabello", desc: "Corte, color, mechas y tratamientos capilares profesionales", icon: "✂️" },
-              { title: "Barba", desc: "Recorte, perfilado y cuidado completo de barba", icon: "🧔" },
-              { title: "Uñas", desc: "Manicura, esmalte gel y tratamientos fortalecedores", icon: "💅" },
-            ].map((service, i) => (
-              <ScrollReveal key={service.title} delay={i * 120}>
-                <div className="group text-center p-6 md:p-8 bg-background rounded-lg hover:shadow-md transition-shadow duration-300">
-                  <div className="text-3xl md:text-4xl mb-4">{service.icon}</div>
-                  <h3 className="font-serif text-lg md:text-xl text-foreground mb-2">{service.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{service.desc}</p>
+          <div className="space-y-4 md:space-y-6">
+            {testimonials.map((t, i) => (
+              <ScrollReveal key={t.name} delay={i * 120}>
+                <div className="bg-card rounded-lg p-6 md:p-8 shadow-sm">
+                  <div className="flex gap-0.5 mb-4">
+                    {Array.from({ length: t.rating }).map((_, j) => (
+                      <Star key={j} size={14} className="text-sand-dark fill-sand-dark" />
+                    ))}
+                  </div>
+                  <p className="text-sm md:text-base text-foreground leading-relaxed italic mb-4">
+                    "{t.text}"
+                  </p>
+                  <p className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">
+                    {t.name}
+                  </p>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Instagram Feed Placeholder */}
+      <section className="py-14 md:py-24 bg-warm-white">
+        <div className="container">
+          <ScrollReveal>
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <Instagram size={18} className="text-sand-dark" />
+              <span className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">
+                @aglbeauty
+              </span>
+            </div>
+          </ScrollReveal>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+            {instagramPosts.map((post, i) => (
+              <ScrollReveal key={post.id} delay={i * 60}>
+                <div className="aspect-square bg-sand-light/30 rounded-md overflow-hidden group cursor-pointer">
+                  <div className="w-full h-full flex items-center justify-center group-hover:bg-sand-light/50 transition-colors duration-300">
+                    <Instagram size={16} className="text-sand-dark/20 group-hover:text-sand-dark/40 transition-colors" />
+                  </div>
                 </div>
               </ScrollReveal>
             ))}
@@ -117,10 +199,13 @@ const Home = () => {
               ¿Lista para tu cita?
             </h2>
             <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto">
-              Reserva en 3 pasos — sin registro, sin complicaciones
+              Reserva en pocos pasos — sin registro, sin complicaciones
             </p>
-            <Button variant="hero" size="lg" className="h-14 px-10 text-base w-full sm:w-auto" asChild>
-              <Link to="/reservar">Reservar Ahora</Link>
+            <Button variant="hero" size="lg" className="h-16 px-10 text-lg w-full sm:w-auto" asChild>
+              <Link to="/reservar">
+                Reservar Ahora
+                <ArrowRight size={20} className="ml-2" />
+              </Link>
             </Button>
           </ScrollReveal>
         </div>
