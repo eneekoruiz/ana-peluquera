@@ -5,7 +5,6 @@ import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
 
-// Mock admin email — would be Firebase Auth restricted to this email only
 const ADMIN_EMAIL = "ana@aglbeauty.com";
 
 const AdminLogin = () => {
@@ -18,13 +17,12 @@ const AdminLogin = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Simulate auth — replace with Firebase Auth (sign-in only, no sign-up)
     await new Promise((r) => setTimeout(r, 800));
 
     if (email.toLowerCase() === ADMIN_EMAIL) {
       localStorage.setItem("agl-admin-auth", "true");
       toast.success("Bienvenida, Ana");
-      navigate("/management-access/panel");
+      navigate("/gestion-privada-agl/panel");
     } else {
       toast.error("Acceso denegado", {
         description: "Solo la administradora puede acceder.",
@@ -41,7 +39,7 @@ const AdminLogin = () => {
             <div className="w-16 h-16 rounded-full bg-sand-light mx-auto mb-6 flex items-center justify-center">
               <Lock size={24} className="text-sand-dark" />
             </div>
-            <span className="font-serif text-4xl tracking-wide text-foreground">AG</span>
+            <span className="font-serif text-4xl tracking-wide text-foreground">AGL</span>
             <p className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mt-3">
               Acceso Administración
             </p>

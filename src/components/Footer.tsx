@@ -1,11 +1,13 @@
+import { Link } from "react-router-dom";
+
 const Footer = () => (
   <footer className="border-t border-border bg-warm-white">
     <div className="container py-10 md:py-16">
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3">
         <div>
-          <span className="font-serif text-2xl tracking-wide text-foreground">AG</span>
+          <span className="font-serif text-2xl tracking-wide text-foreground">AGL</span>
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-xs">
-            Peluquería Ana González — cuidado profesional en el corazón de Donostia.
+            AGL Beauty & Wellness — cuidado profesional del cabello y bienestar en el corazón de Donostia.
           </p>
         </div>
         <div>
@@ -29,10 +31,13 @@ const Footer = () => (
           </div>
         </div>
       </div>
-      <div className="mt-10 pt-6 border-t border-border text-center">
+      <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-xs text-muted-foreground tracking-wide">
-          © {new Date().getFullYear()} AGL Beauty Salon. Todos los derechos reservados.
+          © {new Date().getFullYear()} AGL Beauty & Wellness. Todos los derechos reservados.
         </p>
+        <Link to="/privacidad" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+          Política de Privacidad
+        </Link>
       </div>
     </div>
   </footer>
