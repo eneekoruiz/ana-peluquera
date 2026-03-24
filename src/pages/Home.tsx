@@ -2,41 +2,40 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
 import { MapPin, Clock, Phone as PhoneIcon, Star, ArrowRight, Instagram } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
+import { translations } from "@/i18n/translations";
 import heroImage from "@/assets/hero-salon.jpg";
-
-const testimonials = [
-  { name: "Elena R.", text: "Ana es una artista. Llevo 4 años viniendo y siempre salgo encantada. El ambiente es precioso.", rating: 5 },
-  { name: "Marta I.", text: "La mejor peluquería de Donostia. Profesionalidad, calidez y resultados impecables.", rating: 5 },
-  { name: "Lucía F.", text: "Me encanta que no tenga prisa. Se nota que ama lo que hace. El trato es exquisito.", rating: 5 },
-];
 
 const instagramPosts = Array.from({ length: 6 }, (_, i) => ({
   id: `ig-${i}`,
-  alt: `Trabajo de Ana González - AGL Beauty #${i + 1}`,
+  alt: `AG Beauty Salon work #${i + 1}`,
 }));
 
 const Home = () => {
+  const { lang, t } = useLanguage();
+  const testimonials = translations[lang].testimonials;
+
   return (
     <main className="pt-16">
-      {/* Hero — full-bleed image with text below */}
+      {/* Hero */}
       <section className="relative">
         <div className="aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] overflow-hidden">
           <img
             src={heroImage}
-            alt="Interior del salón AGL Beauty — silla de peluquería en ambiente cálido y minimalista"
+            alt="Interior del salón AG Beauty — ambiente cálido y minimalista"
             className="w-full h-full object-cover"
             loading="eager"
           />
         </div>
         <div className="container py-10 md:py-20 text-center">
           <ScrollReveal>
-            <span className="font-serif text-5xl sm:text-6xl md:text-8xl tracking-wide text-foreground leading-none block mb-3" style={{ lineHeight: '0.9' }}>
-              AGL
+            <span className="font-serif text-5xl sm:text-6xl md:text-8xl tracking-wide text-foreground leading-none block mb-3" style={{ lineHeight: "0.9" }}>
+              {t("home.heroTitle")}
             </span>
           </ScrollReveal>
           <ScrollReveal delay={150}>
             <h1 className="text-[10px] sm:text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mb-5">
-              Beauty & Wellness
+              {t("home.heroSubtitle")}
             </h1>
           </ScrollReveal>
           <ScrollReveal delay={300}>
@@ -44,17 +43,17 @@ const Home = () => {
           </ScrollReveal>
           <ScrollReveal delay={400}>
             <p className="text-base md:text-lg text-muted-foreground font-sans font-light max-w-md mx-auto leading-relaxed mb-1.5">
-              Cuidado profesional del cabello y bienestar en el corazón de Donostia
+              {t("home.heroDescription")}
             </p>
             <p className="text-sm text-muted-foreground/70 font-sans">
-              José María Salaberría 33, San Sebastián
+              {t("home.heroLocation")}
             </p>
           </ScrollReveal>
           <ScrollReveal delay={550}>
             <div className="mt-8 sm:mt-10 px-4 sm:px-0">
               <Button variant="hero" size="lg" className="h-16 px-10 text-lg w-full sm:w-auto" asChild>
                 <Link to="/reservar">
-                  Reservar Cita
+                  {t("home.heroCta")}
                   <ArrowRight size={20} className="ml-2" />
                 </Link>
               </Button>
@@ -76,25 +75,18 @@ const Home = () => {
                 </div>
               </div>
               <div className="md:col-span-3">
-                <span className="text-[10px] font-sans uppercase tracking-widest-plus text-sand-dark mb-4 block">Sobre Nosotras</span>
-                <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-4" style={{ lineHeight: '1.15' }}>
-                  Ana González
+                <span className="text-[10px] font-sans uppercase tracking-widest-plus text-sand-dark mb-4 block">{t("home.aboutTag")}</span>
+                <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-4" style={{ lineHeight: "1.15" }}>
+                  {t("home.aboutTitle")}
                 </h2>
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                  Con más de 15 años de experiencia en el cuidado del cabello, Ana fundó AGL Beauty con una visión clara: 
-                  crear un espacio donde cada clienta se sienta especial. Aquí no hay prisas — cada cita es un momento dedicado 
-                  exclusivamente a ti.
-                </p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Formada en las mejores academias de Barcelona y París, Ana combina técnica profesional con un trato 
-                  cercano y personalizado. Porque la belleza empieza por sentirse bien.
-                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-4">{t("home.aboutP1")}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{t("home.aboutP2")}</p>
                 <div className="mt-6 flex gap-4">
                   <Button variant="outline" size="sm" className="gap-2" asChild>
-                    <Link to="/servicios">Ver Servicios</Link>
+                    <Link to="/servicios">{t("home.viewServices")}</Link>
                   </Button>
                   <Button variant="outline" size="sm" className="gap-2" asChild>
-                    <Link to="/revista">Revista</Link>
+                    <Link to="/revista">{t("home.magazine")}</Link>
                   </Button>
                 </div>
               </div>
@@ -107,29 +99,24 @@ const Home = () => {
       <section className="py-14 md:py-24">
         <div className="container max-w-3xl">
           <ScrollReveal>
-            <h2 className="text-center font-serif text-2xl md:text-4xl text-foreground mb-3" style={{ lineHeight: '1.1' }}>
-              Lo Que Dicen Nuestras Clientas
+            <h2 className="text-center font-serif text-2xl md:text-4xl text-foreground mb-3" style={{ lineHeight: "1.1" }}>
+              {t("home.testimonialsTitle")}
             </h2>
             <p className="text-center text-sm text-muted-foreground mb-10 md:mb-14 max-w-sm mx-auto">
-              La confianza de quienes nos eligen cada día
+              {t("home.testimonialsSubtitle")}
             </p>
           </ScrollReveal>
-
           <div className="space-y-4 md:space-y-6">
-            {testimonials.map((t, i) => (
-              <ScrollReveal key={t.name} delay={i * 120}>
+            {testimonials.map((tst, i) => (
+              <ScrollReveal key={tst.name} delay={i * 120}>
                 <div className="bg-card rounded-lg p-6 md:p-8 shadow-sm">
                   <div className="flex gap-0.5 mb-4">
-                    {Array.from({ length: t.rating }).map((_, j) => (
+                    {Array.from({ length: 5 }).map((_, j) => (
                       <Star key={j} size={14} className="text-sand-dark fill-sand-dark" />
                     ))}
                   </div>
-                  <p className="text-sm md:text-base text-foreground leading-relaxed italic mb-4">
-                    "{t.text}"
-                  </p>
-                  <p className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">
-                    {t.name}
-                  </p>
+                  <p className="text-sm md:text-base text-foreground leading-relaxed italic mb-4">"{tst.text}"</p>
+                  <p className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">{tst.name}</p>
                 </div>
               </ScrollReveal>
             ))}
@@ -137,15 +124,13 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Instagram Feed Placeholder */}
+      {/* Instagram Feed */}
       <section className="py-14 md:py-24 bg-warm-white">
         <div className="container">
           <ScrollReveal>
             <div className="flex items-center justify-center gap-3 mb-8">
               <Instagram size={18} className="text-sand-dark" />
-              <span className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">
-                @aglbeauty
-              </span>
+              <span className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">@agbeautysalon</span>
             </div>
           </ScrollReveal>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
@@ -166,23 +151,20 @@ const Home = () => {
       <section className="py-14 md:py-24">
         <div className="container max-w-2xl">
           <ScrollReveal>
-            <h2 className="font-serif text-2xl md:text-4xl text-foreground text-center mb-8 md:mb-10" style={{ lineHeight: '1.1' }}>
-              Encuéntranos
+            <h2 className="font-serif text-2xl md:text-4xl text-foreground text-center mb-8 md:mb-10" style={{ lineHeight: "1.1" }}>
+              {t("home.findUs")}
             </h2>
           </ScrollReveal>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {[
-              { icon: MapPin, label: "Dirección", value: "José María Salaberría 33\n20008 Donostia" },
-              { icon: Clock, label: "Horario", value: "L-V: 9:00–19:00\nSáb: 9:00–14:00" },
-              { icon: PhoneIcon, label: "Contacto", value: "943 000 000" },
+              { icon: MapPin, label: t("home.address"), value: t("home.addressValue") },
+              { icon: Clock, label: t("home.hours"), value: t("home.hoursValue") },
+              { icon: PhoneIcon, label: t("home.contact"), value: "943 000 000" },
             ].map((item, i) => (
               <ScrollReveal key={item.label} delay={i * 100}>
                 <div className="text-center p-5 bg-card rounded-lg shadow-sm">
                   <item.icon size={18} className="mx-auto text-sand-dark mb-3" />
-                  <h3 className="text-[10px] font-sans uppercase tracking-widest-plus text-muted-foreground mb-2">
-                    {item.label}
-                  </h3>
+                  <h3 className="text-[10px] font-sans uppercase tracking-widest-plus text-muted-foreground mb-2">{item.label}</h3>
                   <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{item.value}</p>
                 </div>
               </ScrollReveal>
@@ -195,15 +177,13 @@ const Home = () => {
       <section className="py-14 md:py-24 bg-warm-white">
         <div className="container text-center">
           <ScrollReveal>
-            <h2 className="font-serif text-2xl md:text-4xl text-foreground mb-4" style={{ lineHeight: '1.1' }}>
-              ¿Lista para tu cita?
+            <h2 className="font-serif text-2xl md:text-4xl text-foreground mb-4" style={{ lineHeight: "1.1" }}>
+              {t("home.readyCta")}
             </h2>
-            <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto">
-              Reserva en pocos pasos — sin registro, sin complicaciones
-            </p>
+            <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto">{t("home.readySubtitle")}</p>
             <Button variant="hero" size="lg" className="h-16 px-10 text-lg w-full sm:w-auto" asChild>
               <Link to="/reservar">
-                Reservar Ahora
+                {t("home.bookNow")}
                 <ArrowRight size={20} className="ml-2" />
               </Link>
             </Button>
