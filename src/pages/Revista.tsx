@@ -1,5 +1,6 @@
 import ScrollReveal from "@/components/ScrollReveal";
 import { Image as ImageIcon } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 import catalogCabello from "@/assets/catalog-cabello.jpg";
 import catalogBarba from "@/assets/catalog-barba.jpg";
 import catalogUnas from "@/assets/catalog-unas.jpg";
@@ -24,31 +25,25 @@ const galleryItems: GalleryItem[] = [
 ];
 
 const Revista = () => {
+  const { t } = useLanguage();
+
   return (
     <main className="pt-16">
       <section className="py-10 md:py-24">
         <div className="container">
           <ScrollReveal>
-            <h1 className="font-serif text-3xl md:text-5xl text-foreground text-center mb-3" style={{ lineHeight: '1.05' }}>
-              Revista
+            <h1 className="font-serif text-3xl md:text-5xl text-foreground text-center mb-3" style={{ lineHeight: "1.05" }}>
+              {t("magazine.title")}
             </h1>
             <p className="text-center text-sm text-muted-foreground mb-10 md:mb-14 max-w-sm mx-auto">
-              Una selección de nuestros trabajos favoritos
+              {t("magazine.subtitle")}
             </p>
           </ScrollReveal>
 
-          {/* Asymmetric editorial grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
             {galleryItems.map((item, i) => (
-              <ScrollReveal
-                key={item.id}
-                delay={i * 70}
-              >
-                <div
-                  className={`group relative overflow-hidden rounded-lg cursor-pointer ${
-                    item.span ? "col-span-2" : ""
-                  }`}
-                >
+              <ScrollReveal key={item.id} delay={i * 70}>
+                <div className={`group relative overflow-hidden rounded-lg cursor-pointer ${item.span ? "col-span-2" : ""}`}>
                   <div className={`overflow-hidden ${item.span ? "aspect-[16/9]" : "aspect-[3/4]"}`}>
                     <img
                       src={item.image}
@@ -57,13 +52,10 @@ const Revista = () => {
                       loading="lazy"
                     />
                   </div>
-                  {/* Overlay on hover */}
                   <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/40 transition-colors duration-500 flex items-end p-3 sm:p-4 md:p-5">
                     <div className="translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
                       <h3 className="font-serif text-sm sm:text-base text-white mb-0.5">{item.title}</h3>
-                      {item.description && (
-                        <p className="text-xs text-white/70">{item.description}</p>
-                      )}
+                      {item.description && <p className="text-xs text-white/70">{item.description}</p>}
                     </div>
                   </div>
                 </div>
@@ -71,7 +63,6 @@ const Revista = () => {
             ))}
           </div>
 
-          {/* Placeholder for more */}
           <ScrollReveal delay={300}>
             <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-3">
               {[1, 2, 3].map((n) => (
