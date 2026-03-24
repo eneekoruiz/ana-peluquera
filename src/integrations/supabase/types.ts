@@ -14,7 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_settings: {
+        Row: {
+          about_text_en: string | null
+          about_text_es: string | null
+          about_text_eu: string | null
+          bookings_enabled: boolean | null
+          id: string
+          today_closed: boolean | null
+          today_closed_date: string | null
+          updated_at: string | null
+          vacation_end: string | null
+          vacation_start: string | null
+        }
+        Insert: {
+          about_text_en?: string | null
+          about_text_es?: string | null
+          about_text_eu?: string | null
+          bookings_enabled?: boolean | null
+          id?: string
+          today_closed?: boolean | null
+          today_closed_date?: string | null
+          updated_at?: string | null
+          vacation_end?: string | null
+          vacation_start?: string | null
+        }
+        Update: {
+          about_text_en?: string | null
+          about_text_es?: string | null
+          about_text_eu?: string | null
+          bookings_enabled?: boolean | null
+          id?: string
+          today_closed?: boolean | null
+          today_closed_date?: string | null
+          updated_at?: string | null
+          vacation_end?: string | null
+          vacation_start?: string | null
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          booking_date: string
+          client_email: string | null
+          client_name: string
+          client_phone: string
+          created_at: string | null
+          current_phase: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          phase2_released: boolean | null
+          service_id: string | null
+          start_time: string
+          status: string | null
+        }
+        Insert: {
+          booking_date: string
+          client_email?: string | null
+          client_name: string
+          client_phone: string
+          created_at?: string | null
+          current_phase?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          phase2_released?: boolean | null
+          service_id?: string | null
+          start_time: string
+          status?: string | null
+        }
+        Update: {
+          booking_date?: string
+          client_email?: string | null
+          client_name?: string
+          client_phone?: string
+          created_at?: string | null
+          current_phase?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          phase2_released?: boolean | null
+          service_id?: string | null
+          start_time?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gallery: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string
+          sort_order: number | null
+          title: string
+          visible: boolean | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url: string
+          sort_order?: number | null
+          title: string
+          visible?: boolean | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string
+          sort_order?: number | null
+          title?: string
+          visible?: boolean | null
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          category: string
+          created_at: string | null
+          description_en: string | null
+          description_es: string | null
+          description_eu: string | null
+          duration_min: number
+          icon_name: string
+          id: string
+          label_en: string
+          label_es: string
+          label_eu: string
+          phase1_min: number | null
+          phase2_min: number | null
+          phase3_min: number | null
+          price_cents: number | null
+          price_from: boolean | null
+          slug: string
+          sort_order: number | null
+          visible: boolean | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description_en?: string | null
+          description_es?: string | null
+          description_eu?: string | null
+          duration_min: number
+          icon_name?: string
+          id?: string
+          label_en: string
+          label_es: string
+          label_eu: string
+          phase1_min?: number | null
+          phase2_min?: number | null
+          phase3_min?: number | null
+          price_cents?: number | null
+          price_from?: boolean | null
+          slug: string
+          sort_order?: number | null
+          visible?: boolean | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description_en?: string | null
+          description_es?: string | null
+          description_eu?: string | null
+          duration_min?: number
+          icon_name?: string
+          id?: string
+          label_en?: string
+          label_es?: string
+          label_eu?: string
+          phase1_min?: number | null
+          phase2_min?: number | null
+          phase3_min?: number | null
+          price_cents?: number | null
+          price_from?: boolean | null
+          slug?: string
+          sort_order?: number | null
+          visible?: boolean | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
