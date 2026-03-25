@@ -37,7 +37,7 @@ const minutesToTime = (m: number) => {
 };
 
 const Reservation = () => {
-  const { language, t } = useLanguage();
+  const { lang, t } = useLanguage();
   const { data: dbServices = [], isLoading: loadingServices } = useServices();
   const { data: settings } = useAdminSettings();
   const createBooking = useCreateBooking();
@@ -174,7 +174,7 @@ const Reservation = () => {
             <div className="bg-card rounded-lg p-6 shadow-sm text-left space-y-3 mb-8">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Servicio</span>
-                <span className="text-foreground font-medium">{getLocalizedLabel(service, language)}</span>
+                <span className="text-foreground font-medium">{getLocalizedLabel(service, lang)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Fecha</span>
@@ -194,7 +194,7 @@ const Reservation = () => {
             <div className="space-y-3">
               <Button variant="hero" size="lg" className="w-full h-14 text-base gap-2" asChild>
                 <a
-                  href={`https://wa.me/34943000000?text=${encodeURIComponent(`Hola, he reservado ${getLocalizedLabel(service, language)} el ${selectedDate?.toLocaleDateString("es-ES")} a las ${selectedTime}`)}`}
+                  href={`https://wa.me/34943000000?text=${encodeURIComponent(`Hola, he reservado ${getLocalizedLabel(service, lang)} el ${selectedDate?.toLocaleDateString("es-ES")} a las ${selectedTime}`)}`}
                   target="_blank" rel="noopener noreferrer"
                 >
                   <MessageCircle size={18} /> Contactar por WhatsApp
@@ -216,10 +216,10 @@ const Reservation = () => {
         <div className="container max-w-lg">
           <ScrollReveal>
             <h1 className="font-serif text-3xl md:text-4xl text-foreground text-center mb-2" style={{ lineHeight: "1.1" }}>
-              {t("reservation.title")}
+              {t("booking.title")}
             </h1>
             <p className="text-center text-sm text-muted-foreground mb-8">
-              {t("reservation.subtitle")}
+              {t("booking.subtitle")}
             </p>
           </ScrollReveal>
 
@@ -248,7 +248,7 @@ const Reservation = () => {
           {step === 1 && (
             <ScrollReveal>
               <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("reservation.whatDoYouNeed")}
+                {t("booking.whatDoYouNeed")}
               </h2>
               {loadingServices ? (
                 <p className="text-center text-sm text-muted-foreground">Cargando servicios…</p>
@@ -291,7 +291,7 @@ const Reservation = () => {
                               <Icon size={18} className={isSelected ? "text-cream" : "text-sand-dark"} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="block text-base font-medium">{getLocalizedLabel(svc, language)}</span>
+                              <span className="block text-base font-medium">{getLocalizedLabel(svc, lang)}</span>
                               <span className={`text-xs ${isSelected ? "text-cream/70" : "text-muted-foreground"}`}>
                                 {svc.duration_min} min {priceStr && `· ${priceStr}`}
                               </span>
@@ -311,7 +311,7 @@ const Reservation = () => {
           {step === 2 && (
             <ScrollReveal>
               <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("reservation.chooseDate")}
+                {t("booking.chooseDate")}
               </h2>
               <div className="flex justify-center">
                 <Calendar
@@ -333,7 +333,7 @@ const Reservation = () => {
               </div>
               {selectedDate && (
                 <p className="text-center text-sm text-foreground mt-4 tabular-nums">
-                  {selectedDate.toLocaleDateString(language === "eu" ? "eu" : language === "en" ? "en-GB" : "es-ES", { weekday: "long", day: "numeric", month: "long" })}
+                  {selectedDate.toLocaleDateString(lang === "eu" ? "eu" : lang === "en" ? "en-GB" : "es-ES", { weekday: "long", day: "numeric", month: "long" })}
                 </p>
               )}
             </ScrollReveal>
@@ -343,7 +343,7 @@ const Reservation = () => {
           {step === 3 && (
             <ScrollReveal>
               <h2 className="font-serif text-xl text-foreground mb-2 text-center">
-                {t("reservation.chooseTime")}
+                {t("booking.chooseTime")}
               </h2>
               <p className="text-center text-xs text-muted-foreground mb-6 capitalize tabular-nums">
                 {selectedDate?.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
@@ -377,20 +377,20 @@ const Reservation = () => {
           {step === 4 && (
             <ScrollReveal>
               <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("reservation.yourDetails")}
+                {t("booking.yourDetails")}
               </h2>
               <div className="bg-card rounded-lg p-6 shadow-sm space-y-5">
                 <div>
                   <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
-                    <User size={14} /> {t("reservation.name")}
+                    <User size={14} /> {t("booking.name")}
                   </label>
                   <input type="text" value={name} onChange={(e) => setName(e.target.value)}
                     className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
-                    placeholder={t("reservation.namePlaceholder")} autoComplete="name" />
+                    placeholder={t("booking.namePlaceholder")} autoComplete="name" />
                 </div>
                 <div>
                   <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
-                    <Phone size={14} /> {t("reservation.phone")}
+                    <Phone size={14} /> {t("booking.phone")}
                   </label>
                   <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                     className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
@@ -409,31 +409,31 @@ const Reservation = () => {
                     <input type="checkbox" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)}
                       className="mt-1 w-5 h-5 rounded border-border text-sand-dark focus:ring-ring shrink-0" />
                     <span className="text-xs text-muted-foreground leading-relaxed">
-                      {t("reservation.privacyText")}{" "}
+                      {t("booking.privacyText")}{" "}
                       <Link to="/privacidad" target="_blank" className="underline text-foreground hover:text-sand-dark transition-colors">
-                        {t("reservation.privacyLink")}
+                        {t("booking.privacyLink")}
                       </Link>.
                     </span>
                   </label>
                 </div>
                 <div className="pt-4 border-t border-border space-y-2">
-                  <p className="text-xs font-sans uppercase tracking-wide text-muted-foreground mb-3">{t("reservation.summary")}</p>
+                  <p className="text-xs font-sans uppercase tracking-wide text-muted-foreground mb-3">{t("booking.summary")}</p>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("reservation.service")}</span>
-                    <span className="text-foreground font-medium">{service ? getLocalizedLabel(service, language) : ""}</span>
+                    <span className="text-muted-foreground">{t("booking.service")}</span>
+                    <span className="text-foreground font-medium">{service ? getLocalizedLabel(service, lang) : ""}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("reservation.date")}</span>
+                    <span className="text-muted-foreground">{t("booking.date")}</span>
                     <span className="text-foreground font-medium tabular-nums">
                       {selectedDate?.toLocaleDateString("es-ES", { day: "numeric", month: "long" })}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("reservation.time")}</span>
+                    <span className="text-muted-foreground">{t("booking.time")}</span>
                     <span className="text-foreground font-medium tabular-nums">{selectedTime}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("reservation.duration")}</span>
+                    <span className="text-muted-foreground">{t("booking.duration")}</span>
                     <span className="text-foreground font-medium">{service?.duration_min} min</span>
                   </div>
                 </div>
@@ -447,18 +447,18 @@ const Reservation = () => {
               {step > 1 && (
                 <Button variant="outline" size="lg" className="flex-1 h-14 text-base gap-2"
                   onClick={() => setStep((step - 1) as Step)}>
-                  <ArrowLeft size={16} /> {t("reservation.back")}
+                  <ArrowLeft size={16} /> {t("booking.back")}
                 </Button>
               )}
               {step < totalSteps ? (
                 <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
                   disabled={!canAdvance()} onClick={() => setStep((step + 1) as Step)}>
-                  {t("reservation.next")} <ArrowRight size={16} />
+                  {t("booking.next")} <ArrowRight size={16} />
                 </Button>
               ) : (
                 <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
                   disabled={!canAdvance() || createBooking.isPending} onClick={handleSubmit}>
-                  <Check size={16} /> {t("reservation.confirm")}
+                  <Check size={16} /> {t("booking.confirm")}
                 </Button>
               )}
             </div>
