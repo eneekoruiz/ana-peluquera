@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// blocked_slots table may not be in auto-generated types yet
+const blockedTable = () => supabase.from("blocked_slots" as any);
+
 export interface BlockedSlot {
   id: string;
   blocked_date: string;
