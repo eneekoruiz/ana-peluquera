@@ -248,7 +248,7 @@ const Reservation = () => {
           {step === 1 && (
             <ScrollReveal>
               <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("booking.whatDoYouNeed")}
+                {t("booking.whatNeed")}
               </h2>
               {loadingServices ? (
                 <p className="text-center text-sm text-muted-foreground">Cargando servicios…</p>
@@ -377,7 +377,7 @@ const Reservation = () => {
           {step === 4 && (
             <ScrollReveal>
               <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("booking.yourDetails")}
+                {t("booking.contactData")}
               </h2>
               <div className="bg-card rounded-lg p-6 shadow-sm space-y-5">
                 <div>
