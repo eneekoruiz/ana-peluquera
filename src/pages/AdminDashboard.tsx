@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ScrollReveal from "@/components/ScrollReveal";
 import { CalendarDays, Lock, Image, FileText, Power, AlertTriangle, CalendarOff, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAdminSettings, useUpdateAdminSettings } from "@/hooks/useAdminSettings";
 import AdminAppointments from "@/components/admin/AdminAppointments";
 import AdminBlocking from "@/components/admin/AdminBlocking";
 import AdminGallery from "@/components/admin/AdminGallery";
 import AdminAudit from "@/components/admin/AdminAudit";
 import AdminServices from "@/components/admin/AdminServices";
+import AdminVacation from "@/components/admin/AdminVacation";
 
 type AdminTab = "appointments" | "blocking" | "gallery" | "services" | "audit";
 
@@ -21,24 +24,31 @@ const tabs = [
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>("appointments");
-  const [masterSwitch, setMasterSwitch] = useState(true);
-  const [todayClosed, setTodayClosed] = useState(false);
+  const [showVacation, setShowVacation] = useState(false);
+  const { data: settings } = useAdminSettings();
+  const updateSettings = useUpdateAdminSettings();
 
-  const handleLogout = () => {
-    localStorage.removeItem("agl-admin-auth");
-    window.location.href = "/gestion-privada-agl";
+  const bookingsEnabled = settings?.bookings_enabled ?? true;
+  const todayClosed = settings?.today_closed ?? false;
+  const todayClosedDate = settings?.today_closed_date;
+
+  // Reset today_closed if date changed
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isTodayActuallyClosed = todayClosed && todayClosedDate === todayStr;
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/portal-reservado";
   };
 
   const toggleMasterSwitch = () => {
-    const next = !masterSwitch;
-    setMasterSwitch(next);
-    toast[next ? "success" : "error"](
-      next ? "Reservas online activadas" : "Reservas online desactivadas"
-    );
+    const next = !bookingsEnabled;
+    updateSettings.mutate({ bookings_enabled: next });
+    toast[next ? "success" : "error"](next ? "Reservas online activadas" : "Reservas online desactivadas");
   };
 
   const handlePanicButton = () => {
-    setTodayClosed(true);
+    updateSettings.mutate({ today_closed: true, today_closed_date: todayStr });
     toast.error("Día de hoy cerrado — no se aceptarán más citas");
   };
 
@@ -59,65 +69,64 @@ const AdminDashboard = () => {
               </button>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              Hola Ana — AGL Beauty & Wellness
+              Hola Ana — AG Beauty Salon
             </p>
           </ScrollReveal>
 
           {/* Quick controls */}
           <ScrollReveal delay={100}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 sm:mb-8">
-              {/* Master Switch */}
               <button
                 onClick={toggleMasterSwitch}
                 className={`flex items-center gap-3 p-4 rounded-lg transition-all duration-200 active:scale-[0.98] ${
-                  masterSwitch
+                  bookingsEnabled
                     ? "bg-green-50 text-green-700 shadow-sm"
                     : "bg-destructive/10 text-destructive shadow-sm"
                 }`}
               >
                 <Power size={18} />
                 <div className="text-left">
-                  <span className="block text-xs font-sans uppercase tracking-wide font-medium">
-                    Reservas Online
-                  </span>
-                  <span className="text-[10px]">{masterSwitch ? "Activadas" : "Desactivadas"}</span>
+                  <span className="block text-xs font-sans uppercase tracking-wide font-medium">Reservas Online</span>
+                  <span className="text-[10px]">{bookingsEnabled ? "Activadas" : "Desactivadas"}</span>
                 </div>
               </button>
 
-              {/* Panic Button */}
               <button
                 onClick={handlePanicButton}
-                disabled={todayClosed}
+                disabled={isTodayActuallyClosed}
                 className={`flex items-center gap-3 p-4 rounded-lg transition-all duration-200 active:scale-[0.98] ${
-                  todayClosed
+                  isTodayActuallyClosed
                     ? "bg-muted text-muted-foreground cursor-not-allowed"
                     : "bg-card text-foreground shadow-sm hover:shadow-md"
                 }`}
               >
-                <AlertTriangle size={18} className={todayClosed ? "text-muted-foreground" : "text-sand-dark"} />
+                <AlertTriangle size={18} className={isTodayActuallyClosed ? "text-muted-foreground" : "text-sand-dark"} />
                 <div className="text-left">
                   <span className="block text-xs font-sans uppercase tracking-wide font-medium">
-                    {todayClosed ? "Hoy Cerrado" : "Cerrar Hoy"}
+                    {isTodayActuallyClosed ? "Hoy Cerrado" : "Cerrar Hoy"}
                   </span>
                   <span className="text-[10px] text-muted-foreground">Botón de pánico</span>
                 </div>
               </button>
 
-              {/* Vacation placeholder */}
               <button
-                onClick={() => toast.info("Selector de vacaciones — próximamente con backend")}
+                onClick={() => setShowVacation(!showVacation)}
                 className="flex items-center gap-3 p-4 rounded-lg bg-card text-foreground shadow-sm hover:shadow-md transition-all duration-200 active:scale-[0.98]"
               >
                 <CalendarOff size={18} className="text-sand-dark" />
                 <div className="text-left">
-                  <span className="block text-xs font-sans uppercase tracking-wide font-medium">
-                    Vacaciones
+                  <span className="block text-xs font-sans uppercase tracking-wide font-medium">Vacaciones</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {settings?.vacation_start
+                      ? `${settings.vacation_start} → ${settings.vacation_end}`
+                      : "Bloquear rango de fechas"}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">Bloquear rango de fechas</span>
                 </div>
               </button>
             </div>
           </ScrollReveal>
+
+          {showVacation && <AdminVacation settings={settings} onClose={() => setShowVacation(false)} />}
 
           {/* Tabs */}
           <div className="flex gap-1 mb-6 sm:mb-8 bg-secondary rounded-lg p-1 overflow-x-auto scrollbar-hide">

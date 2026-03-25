@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
-
-const ADMIN_EMAIL = "ana@aglbeauty.com";
+import { supabase } from "@/integrations/supabase/client";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -16,19 +15,18 @@ const AdminLogin = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    await new Promise((r) => setTimeout(r, 800));
-
-    if (email.toLowerCase() === ADMIN_EMAIL) {
-      localStorage.setItem("agl-admin-auth", "true");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       toast.success("Bienvenida, Ana");
-      navigate("/gestion-privada-agl/panel");
-    } else {
+      navigate("/portal-reservado/panel");
+    } catch (err: any) {
       toast.error("Acceso denegado", {
-        description: "Solo la administradora puede acceder.",
+        description: err?.message || "Credenciales incorrectas.",
       });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
