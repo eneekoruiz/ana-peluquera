@@ -1,0 +1,49 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// blocked_slots table may not be in auto-generated types yet
+const blockedTable = () => supabase.from("blocked_slots" as any);
+
+export interface BlockedSlot {
+  id: string;
+  blocked_date: string;
+  start_time: string;
+  end_time: string;
+  reason: string;
+  created_at: string | null;
+}
+
+export const useBlockedSlots = () => {
+  return useQuery({
+    queryKey: ["blocked_slots"],
+    queryFn: async () => {
+      const { data, error } = await blockedTable()
+        .select("*")
+        .order("blocked_date", { ascending: true });
+      if (error) throw error;
+      return data as unknown as BlockedSlot[];
+    },
+  });
+};
+
+export const useCreateBlockedSlot = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (slot: { blocked_date: string; start_time: string; end_time: string; reason?: string }) => {
+      const { error } = await blockedTable().insert(slot);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["blocked_slots"] }),
+  });
+};
+
+export const useDeleteBlockedSlot = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await blockedTable().delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["blocked_slots"] }),
+  });
+};

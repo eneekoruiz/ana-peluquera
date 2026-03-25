@@ -53,6 +53,33 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_slots: {
+        Row: {
+          blocked_date: string
+          created_at: string | null
+          end_time: string
+          id: string
+          reason: string | null
+          start_time: string
+        }
+        Insert: {
+          blocked_date: string
+          created_at?: string | null
+          end_time: string
+          id?: string
+          reason?: string | null
+          start_time: string
+        }
+        Update: {
+          blocked_date?: string
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          reason?: string | null
+          start_time?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           booking_date: string
