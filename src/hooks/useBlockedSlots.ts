@@ -21,7 +21,7 @@ export const useBlockedSlots = () => {
         .select("*")
         .order("blocked_date", { ascending: true });
       if (error) throw error;
-      return data as BlockedSlot[];
+      return data as unknown as BlockedSlot[];
     },
   });
 };
