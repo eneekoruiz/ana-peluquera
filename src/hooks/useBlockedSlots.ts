@@ -30,7 +30,7 @@ export const useCreateBlockedSlot = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (slot: { blocked_date: string; start_time: string; end_time: string; reason?: string }) => {
-      const { error } = await supabase.from("blocked_slots").insert(slot);
+      const { error } = await blockedTable().insert(slot);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["blocked_slots"] }),
