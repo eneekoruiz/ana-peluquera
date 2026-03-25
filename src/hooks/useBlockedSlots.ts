@@ -17,8 +17,7 @@ export const useBlockedSlots = () => {
   return useQuery({
     queryKey: ["blocked_slots"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("blocked_slots")
+      const { data, error } = await blockedTable()
         .select("*")
         .order("blocked_date", { ascending: true });
       if (error) throw error;
