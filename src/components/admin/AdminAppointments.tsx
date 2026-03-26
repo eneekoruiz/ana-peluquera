@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
-import { Check, X, Phone, ChevronLeft, ChevronRight, Unlock } from "lucide-react";
+import { Check, X, Phone, ChevronLeft, ChevronRight, Unlock, MessageCircle } from "lucide-react";
 import { useBookingsByDate, useUpdateBooking } from "@/hooks/useBookings";
 import { useServices, getLocalizedLabel } from "@/hooks/useServices";
 
@@ -124,6 +124,25 @@ const AdminAppointments = () => {
                         <X size={12} />
                       </Button>
                     </>
+                  )}
+                  {/* WhatsApp reminder */}
+                  {apt.status !== "cancelled" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 text-green-600 hover:text-green-700"
+                      asChild
+                    >
+                      <a
+                        href={`https://wa.me/34${apt.client_phone?.replace(/\s/g, "")}?text=${encodeURIComponent(
+                          `Hola ${apt.client_name}, te recordamos tu cita en AG Beauty Salon el ${dateStr} a las ${apt.start_time?.slice(0, 5)}. ¡Te esperamos!`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <MessageCircle size={12} />
+                      </a>
+                    </Button>
                   )}
                 </div>
               </div>

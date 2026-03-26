@@ -5,6 +5,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
 import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle, CalendarPlus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
+import BookingFAQ from "@/components/BookingFAQ";
 import { Scissors, Hand, Sparkles, Paintbrush, Droplets, Palette, Flower2, CircleDot } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useServices, getLocalizedLabel, getLocalizedDescription, type DBService } from "@/hooks/useServices";
@@ -463,6 +464,9 @@ const Reservation = () => {
               )}
             </div>
           </ScrollReveal>
+
+          {/* FAQ */}
+          <BookingFAQ />
         </div>
       </section>
     </main>

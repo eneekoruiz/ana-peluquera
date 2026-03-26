@@ -1,57 +1,55 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
-import { MapPin, Clock, Phone as PhoneIcon, Star, ArrowRight, Instagram } from "lucide-react";
+import { MapPin, ArrowRight, Phone as PhoneIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { translations } from "@/i18n/translations";
 import heroImage from "@/assets/hero-salon.jpg";
 
-const instagramPosts = Array.from({ length: 6 }, (_, i) => ({
-  id: `ig-${i}`,
-  alt: `AG Beauty Salon work #${i + 1}`,
-}));
-
 const Home = () => {
-  const { lang, t } = useLanguage();
-  const testimonials = translations[lang].testimonials;
+  const { t } = useLanguage();
 
   return (
     <main className="pt-16">
-      {/* Hero */}
+      {/* Hero — Brand + CTA focal point */}
       <section className="relative">
         <div className="aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] overflow-hidden">
           <img
             src={heroImage}
-            alt="Interior del salón AG Beauty — ambiente cálido y minimalista"
+            alt="AG Beauty Salon — interior cálido y minimalista"
             className="w-full h-full object-cover"
             loading="eager"
           />
         </div>
-        <div className="container py-10 md:py-20 text-center">
+        <div className="container py-12 md:py-24 text-center">
           <ScrollReveal>
-            <span className="font-serif text-5xl sm:text-6xl md:text-8xl tracking-wide text-foreground leading-none block mb-3" style={{ lineHeight: "0.9" }}>
-              {t("home.heroTitle")}
+            <span
+              className="font-serif text-6xl sm:text-7xl md:text-9xl tracking-wide text-foreground leading-none block mb-2"
+              style={{ lineHeight: "0.85" }}
+            >
+              AG
             </span>
           </ScrollReveal>
-          <ScrollReveal delay={150}>
-            <h1 className="text-[10px] sm:text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mb-5">
-              {t("home.heroSubtitle")}
+          <ScrollReveal delay={100}>
+            <h1 className="text-[10px] sm:text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mb-6">
+              Beauty Salon
             </h1>
           </ScrollReveal>
-          <ScrollReveal delay={300}>
-            <div className="w-12 h-px bg-sand-dark mx-auto mb-5" />
+          <ScrollReveal delay={200}>
+            <div className="w-12 h-px bg-sand-dark mx-auto mb-6" />
           </ScrollReveal>
-          <ScrollReveal delay={400}>
-            <p className="text-base md:text-lg text-muted-foreground font-sans font-light max-w-md mx-auto leading-relaxed mb-1.5">
+          <ScrollReveal delay={300}>
+            <p className="text-base md:text-lg text-muted-foreground font-sans font-light max-w-md mx-auto leading-relaxed mb-2">
               {t("home.heroDescription")}
             </p>
-            <p className="text-sm text-muted-foreground/70 font-sans">
+            <p className="text-sm text-muted-foreground/70 font-sans mb-10">
               {t("home.heroLocation")}
             </p>
           </ScrollReveal>
-          <ScrollReveal delay={550}>
-            <div className="mt-8 sm:mt-10 px-4 sm:px-0">
-              <Button variant="hero" size="lg" className="h-16 px-10 text-lg w-full sm:w-auto" asChild>
+
+          {/* PRIMARY ACTION — RESERVAR CITA */}
+          <ScrollReveal delay={400}>
+            <div className="px-4 sm:px-0">
+              <Button variant="hero" size="lg" className="h-16 sm:h-20 px-10 sm:px-14 text-base sm:text-lg w-full sm:w-auto" asChild>
                 <Link to="/reservar">
                   {t("home.heroCta")}
                   <ArrowRight size={20} className="ml-2" />
@@ -59,134 +57,81 @@ const Home = () => {
               </Button>
             </div>
           </ScrollReveal>
-        </div>
-      </section>
 
-      {/* About Ana */}
-      <section className="py-14 md:py-24 bg-warm-white">
-        <div className="container max-w-3xl">
-          <ScrollReveal>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 md:gap-12 items-center">
-              <div className="md:col-span-2">
-                <div className="aspect-[3/4] rounded-lg bg-sand-light/40 overflow-hidden">
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="font-serif text-6xl text-sand-dark/20">AG</span>
-                  </div>
-                </div>
-              </div>
-              <div className="md:col-span-3">
-                <span className="text-[10px] font-sans uppercase tracking-widest-plus text-sand-dark mb-4 block">{t("home.aboutTag")}</span>
-                <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-4" style={{ lineHeight: "1.15" }}>
-                  {t("home.aboutTitle")}
-                </h2>
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4">{t("home.aboutP1")}</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">{t("home.aboutP2")}</p>
-                <div className="mt-6 flex gap-4">
-                  <Button variant="outline" size="sm" className="gap-2" asChild>
-                    <Link to="/servicios">{t("home.viewServices")}</Link>
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-2" asChild>
-                    <Link to="/revista">{t("home.magazine")}</Link>
-                  </Button>
-                </div>
-              </div>
+          {/* Click-to-Call for seniors */}
+          <ScrollReveal delay={500}>
+            <div className="mt-4">
+              <a
+                href="tel:+34943000000"
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors font-sans"
+              >
+                <PhoneIcon size={14} />
+                {t("home.callNow")}
+              </a>
             </div>
           </ScrollReveal>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-14 md:py-24">
+      {/* Find Us — Map + Address + Google Maps button */}
+      <section className="py-14 md:py-24 bg-warm-white">
         <div className="container max-w-3xl">
           <ScrollReveal>
-            <h2 className="text-center font-serif text-2xl md:text-4xl text-foreground mb-3" style={{ lineHeight: "1.1" }}>
-              {t("home.testimonialsTitle")}
-            </h2>
-            <p className="text-center text-sm text-muted-foreground mb-10 md:mb-14 max-w-sm mx-auto">
-              {t("home.testimonialsSubtitle")}
-            </p>
-          </ScrollReveal>
-          <div className="space-y-4 md:space-y-6">
-            {testimonials.map((tst, i) => (
-              <ScrollReveal key={tst.name} delay={i * 120}>
-                <div className="bg-card rounded-lg p-6 md:p-8 shadow-sm">
-                  <div className="flex gap-0.5 mb-4">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <Star key={j} size={14} className="text-sand-dark fill-sand-dark" />
-                    ))}
-                  </div>
-                  <p className="text-sm md:text-base text-foreground leading-relaxed italic mb-4">"{tst.text}"</p>
-                  <p className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">{tst.name}</p>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Instagram Feed */}
-      <section className="py-14 md:py-24 bg-warm-white">
-        <div className="container">
-          <ScrollReveal>
-            <div className="flex items-center justify-center gap-3 mb-8">
-              <Instagram size={18} className="text-sand-dark" />
-              <span className="text-xs font-sans uppercase tracking-widest-plus text-muted-foreground">@agbeautysalon</span>
-            </div>
-          </ScrollReveal>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
-            {instagramPosts.map((post, i) => (
-              <ScrollReveal key={post.id} delay={i * 60}>
-                <div className="aspect-square bg-sand-light/30 rounded-md overflow-hidden group cursor-pointer">
-                  <div className="w-full h-full flex items-center justify-center group-hover:bg-sand-light/50 transition-colors duration-300">
-                    <Instagram size={16} className="text-sand-dark/20 group-hover:text-sand-dark/40 transition-colors" />
-                  </div>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Info */}
-      <section className="py-14 md:py-24">
-        <div className="container max-w-2xl">
-          <ScrollReveal>
-            <h2 className="font-serif text-2xl md:text-4xl text-foreground text-center mb-8 md:mb-10" style={{ lineHeight: "1.1" }}>
+            <h2
+              className="font-serif text-2xl md:text-4xl text-foreground text-center mb-8 md:mb-10"
+              style={{ lineHeight: "1.1" }}
+            >
               {t("home.findUs")}
             </h2>
           </ScrollReveal>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {[
-              { icon: MapPin, label: t("home.address"), value: t("home.addressValue") },
-              { icon: Clock, label: t("home.hours"), value: t("home.hoursValue") },
-              { icon: PhoneIcon, label: t("home.contact"), value: "943 000 000" },
-            ].map((item, i) => (
-              <ScrollReveal key={item.label} delay={i * 100}>
-                <div className="text-center p-5 bg-card rounded-lg shadow-sm">
-                  <item.icon size={18} className="mx-auto text-sand-dark mb-3" />
-                  <h3 className="text-[10px] font-sans uppercase tracking-widest-plus text-muted-foreground mb-2">{item.label}</h3>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{item.value}</p>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="py-14 md:py-24 bg-warm-white">
-        <div className="container text-center">
-          <ScrollReveal>
-            <h2 className="font-serif text-2xl md:text-4xl text-foreground mb-4" style={{ lineHeight: "1.1" }}>
-              {t("home.readyCta")}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto">{t("home.readySubtitle")}</p>
-            <Button variant="hero" size="lg" className="h-16 px-10 text-lg w-full sm:w-auto" asChild>
-              <Link to="/reservar">
-                {t("home.bookNow")}
-                <ArrowRight size={20} className="ml-2" />
-              </Link>
-            </Button>
+          {/* Embedded Map */}
+          <ScrollReveal delay={100}>
+            <div className="aspect-[16/9] rounded-lg overflow-hidden shadow-sm mb-6">
+              <iframe
+                title="AG Beauty Salon — José María Salaberría 33, Donostia"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2905.0!2d-1.9785!3d43.3128!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zSm9zw6kgTWFyw61hIFNhbGFiZXJyw61hIDMzLCBEb25vc3RpYQ!5e0!3m2!1ses!2ses!4v1"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="w-full h-full"
+              />
+            </div>
+          </ScrollReveal>
+
+          <ScrollReveal delay={200}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-card rounded-lg p-5 shadow-sm text-center">
+                <MapPin size={18} className="mx-auto text-sand-dark mb-3" />
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                  {t("home.addressValue")}
+                </p>
+                <a
+                  href="https://www.google.com/maps/search/?api=1&query=José+María+Salaberría+33+Donostia"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-3 text-xs font-sans uppercase tracking-widest-plus text-sand-dark hover:text-foreground transition-colors"
+                >
+                  <MapPin size={12} />
+                  {t("home.openMaps")}
+                </a>
+              </div>
+              <div className="bg-card rounded-lg p-5 shadow-sm text-center">
+                <PhoneIcon size={18} className="mx-auto text-sand-dark mb-3" />
+                <p className="text-sm text-foreground mb-1">943 000 000</p>
+                <p className="text-xs text-muted-foreground whitespace-pre-line">{t("home.hoursValue")}</p>
+                <a
+                  href="tel:+34943000000"
+                  className="inline-flex items-center gap-1.5 mt-3 text-xs font-sans uppercase tracking-widest-plus text-sand-dark hover:text-foreground transition-colors"
+                >
+                  <PhoneIcon size={12} />
+                  {t("home.callNow")}
+                </a>
+              </div>
+            </div>
           </ScrollReveal>
         </div>
       </section>
