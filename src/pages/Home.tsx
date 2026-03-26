@@ -10,57 +10,44 @@ const Home = () => {
 
   return (
     <main className="pt-16">
-      {/* Hero — Brand + CTA focal point */}
-      <section className="relative">
-        <div className="aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] overflow-hidden">
-          <img
-            src={heroImage}
-            alt="AG Beauty Salon — interior cálido y minimalista"
-            className="w-full h-full object-cover"
-            loading="eager"
-          />
-        </div>
-        <div className="container py-12 md:py-24 text-center">
+      {/* 1. Brand + CTA — First thing you see, no distractions */}
+      <section className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="container text-center px-6">
           <ScrollReveal>
             <span
-              className="font-serif text-6xl sm:text-7xl md:text-9xl tracking-wide text-foreground leading-none block mb-2"
+              className="font-serif text-7xl sm:text-8xl md:text-9xl tracking-wide text-foreground leading-none block"
               style={{ lineHeight: "0.85" }}
             >
               AG
             </span>
           </ScrollReveal>
           <ScrollReveal delay={100}>
-            <h1 className="text-[10px] sm:text-xs font-sans uppercase tracking-widest-plus text-muted-foreground mb-6">
+            <h1 className="text-xs sm:text-sm font-sans uppercase tracking-widest-plus text-muted-foreground mt-3 mb-8">
               Beauty Salon
             </h1>
           </ScrollReveal>
           <ScrollReveal delay={200}>
-            <div className="w-12 h-px bg-sand-dark mx-auto mb-6" />
+            <div className="w-12 h-px bg-sand-dark mx-auto mb-8" />
           </ScrollReveal>
           <ScrollReveal delay={300}>
-            <p className="text-base md:text-lg text-muted-foreground font-sans font-light max-w-md mx-auto leading-relaxed mb-2">
+            <p className="text-base md:text-lg text-muted-foreground font-sans font-light max-w-md mx-auto leading-relaxed mb-10">
               {t("home.heroDescription")}
             </p>
-            <p className="text-sm text-muted-foreground/70 font-sans mb-10">
-              {t("home.heroLocation")}
-            </p>
           </ScrollReveal>
 
-          {/* PRIMARY ACTION — RESERVAR CITA */}
+          {/* PRIMARY ACTION */}
           <ScrollReveal delay={400}>
-            <div className="px-4 sm:px-0">
-              <Button variant="hero" size="lg" className="h-16 sm:h-20 px-10 sm:px-14 text-base sm:text-lg w-full sm:w-auto" asChild>
-                <Link to="/reservar">
-                  {t("home.heroCta")}
-                  <ArrowRight size={20} className="ml-2" />
-                </Link>
-              </Button>
-            </div>
+            <Button variant="hero" size="lg" className="h-16 sm:h-20 px-10 sm:px-14 text-base sm:text-lg w-full sm:w-auto" asChild>
+              <Link to="/reservar">
+                {t("home.heroCta")}
+                <ArrowRight size={20} className="ml-2" />
+              </Link>
+            </Button>
           </ScrollReveal>
 
-          {/* Click-to-Call for seniors */}
+          {/* Click-to-Call */}
           <ScrollReveal delay={500}>
-            <div className="mt-4">
+            <div className="mt-5">
               <a
                 href="tel:+34943000000"
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors font-sans"
@@ -73,7 +60,21 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Find Us — Map + Address + Google Maps button */}
+      {/* 2. Visual Context — One salon photo */}
+      <section>
+        <ScrollReveal>
+          <div className="aspect-[16/9] md:aspect-[21/9] overflow-hidden">
+            <img
+              src={heroImage}
+              alt="AG Beauty Salon — interior cálido y minimalista"
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        </ScrollReveal>
+      </section>
+
+      {/* 3. Find Us — Map + Address + Google Maps */}
       <section className="py-14 md:py-24 bg-warm-white">
         <div className="container max-w-3xl">
           <ScrollReveal>
@@ -85,7 +86,6 @@ const Home = () => {
             </h2>
           </ScrollReveal>
 
-          {/* Embedded Map */}
           <ScrollReveal delay={100}>
             <div className="aspect-[16/9] rounded-lg overflow-hidden shadow-sm mb-6">
               <iframe
