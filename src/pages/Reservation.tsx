@@ -464,6 +464,9 @@ const Reservation = () => {
               )}
             </div>
           </ScrollReveal>
+
+          {/* FAQ */}
+          <BookingFAQ />
         </div>
       </section>
     </main>
