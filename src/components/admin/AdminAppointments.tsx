@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
-import { Check, X, Phone, ChevronLeft, ChevronRight, Unlock } from "lucide-react";
+import { Check, X, Phone, ChevronLeft, ChevronRight, Unlock, MessageCircle } from "lucide-react";
 import { useBookingsByDate, useUpdateBooking } from "@/hooks/useBookings";
 import { useServices, getLocalizedLabel } from "@/hooks/useServices";
 
