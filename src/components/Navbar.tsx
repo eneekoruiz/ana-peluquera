@@ -1,24 +1,34 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Settings } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageSelector from "@/components/LanguageSelector";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const { t } = useLanguage();
+  
+  const { user } = useAuth();
+  const isAdmin = user && (user as any).email === 'eneekoruiz@gmail.com';
 
   const navLinks = [
-    { to: "/", label: t("nav.home") },
-    { to: "/servicios", label: t("nav.services") },
+    { to: "/",            label: t("nav.home") },
+    { to: "/servicios",    label: t("nav.services") },
     { to: "/quienes-somos", label: t("nav.about") },
-    { to: "/revista", label: t("nav.magazine") },
-    { to: "/reservar", label: t("nav.book") },
+    { to: "/revista",      label: t("nav.magazine") },
+    { to: "/reservar",     label: t("nav.book") },
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border">
+    <header
+      className={cn(
+        "fixed left-0 right-0 z-50 bg-background/90 backdrop-blur-sm border-b border-border transition-[top] duration-300",
+        isAdmin ? "top-11" : "top-0"
+      )}
+    >
       <nav className="container flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2">
           <span className="font-serif text-2xl tracking-wide text-foreground">AG</span>
@@ -27,39 +37,57 @@ const Navbar = () => {
           </span>
         </Link>
 
-        {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-8">
           <ul className="flex items-center gap-8">
             {navLinks.map((link) => (
               <li key={link.to}>
                 <Link
                   to={link.to}
-                  className={`text-xs font-sans uppercase tracking-widest-plus transition-colors duration-200 hover:text-foreground ${
+                  className={cn(
+                    "text-xs font-sans uppercase tracking-widest-plus transition-colors duration-200 hover:text-foreground",
                     location.pathname === link.to ? "text-foreground" : "text-muted-foreground"
-                  }`}
+                  )}
                 >
                   {link.label}
                 </Link>
               </li>
             ))}
           </ul>
-          <LanguageSelector />
+
+          <div className="flex items-center gap-4">
+            <LanguageSelector />
+            
+            {isAdmin && (
+              <Link 
+                to="/portal-reservado/panel" 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sand-dark text-white text-[10px] font-sans uppercase tracking-widest-plus rounded-md hover:bg-sand-dark/90 transition-colors"
+              >
+                <Settings size={12} />
+                <span>Panel</span>
+              </Link>
+            )}
+          </div>
         </div>
 
-        {/* Mobile controls */}
-        <div className="flex items-center gap-2 md:hidden">
+        <div className="flex items-center gap-3 md:hidden">
+          {isAdmin && (
+             <Link 
+               to="/portal-reservado/panel" 
+               className="flex items-center justify-center w-8 h-8 bg-sand-dark text-white rounded-md hover:bg-sand-dark/90 transition-colors"
+             >
+               <Settings size={14} />
+             </Link>
+          )}
           <LanguageSelector />
           <button
             onClick={() => setOpen(!open)}
             className="p-2 text-foreground active:scale-95 transition-transform"
-            aria-label="Toggle menu"
           >
             {open ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </nav>
 
-      {/* Mobile menu */}
       {open && (
         <div className="md:hidden bg-background border-b border-border animate-fade-in">
           <ul className="container py-6 flex flex-col gap-4">
@@ -68,9 +96,10 @@ const Navbar = () => {
                 <Link
                   to={link.to}
                   onClick={() => setOpen(false)}
-                  className={`block text-sm font-sans uppercase tracking-widest-plus py-2 ${
+                  className={cn(
+                    "block text-sm font-sans uppercase tracking-widest-plus py-2",
                     location.pathname === link.to ? "text-foreground" : "text-muted-foreground"
-                  }`}
+                  )}
                 >
                   {link.label}
                 </Link>

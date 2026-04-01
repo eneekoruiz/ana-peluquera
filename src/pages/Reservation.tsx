@@ -1,17 +1,27 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
-import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle, CalendarPlus } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import BookingFAQ from "@/components/BookingFAQ";
 import { Scissors, Hand, Sparkles, Paintbrush, Droplets, Palette, Flower2, CircleDot } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useServices, getLocalizedLabel, getLocalizedDescription, type DBService } from "@/hooks/useServices";
-import { useBookingsByDate, useCreateBooking } from "@/hooks/useBookings";
+import { useServices, getLocalizedLabel } from "@/hooks/useServices";
 import { useAdminSettings } from "@/hooks/useAdminSettings";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { es, enGB, eu } from "date-fns/locale";
+
+// 🔥 Firebase
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
+
+// 🔥 CMS y Cerebro
+import EditableText from "@/components/cms/EditableText";
+import { useServicesPageContent, useUpdateServicesPageContent } from "@/hooks/useServices";
+import { calculateAvailability, Employee } from "@/lib/scheduler";
 
 const iconMap: Record<string, LucideIcon> = {
   scissors: Scissors, hand: Hand, sparkles: Sparkles, paintbrush: Paintbrush,
@@ -21,12 +31,19 @@ const iconMap: Record<string, LucideIcon> = {
 type Step = 1 | 2 | 3 | 4;
 
 const ALL_SLOTS = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-  "12:00", "12:30", "13:00", "15:00", "15:30", "16:00",
-  "16:30", "17:00", "17:30", "18:00", "18:30",
+  "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45",
+  "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45",
+  "13:00", "13:15", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15",
+  "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45"
+];
+
+const defaultStaff: Employee[] = [
+  { id: "ana_id", name: "Ana", skills: ["peluqueria", "masajes"], workingDays: [1, 2, 3, 4, 5, 6], priority: 1 },
+  { id: "refuerzo_id", name: "Refuerzo", skills: ["peluqueria"], workingDays: [5, 6], priority: 2 }
 ];
 
 const timeToMinutes = (t: string) => {
+  if (!t || !t.includes(":")) return 0;
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
@@ -37,123 +54,247 @@ const minutesToTime = (m: number) => {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 };
 
+const normalizeCategory = (str: string) => 
+  str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+
+const getLocalDateStr = (d: Date = new Date()) => {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+
 const Reservation = () => {
+  const { isEditingView } = useAuth(); 
   const { lang, t } = useLanguage();
   const { data: dbServices = [], isLoading: loadingServices } = useServices();
   const { data: settings } = useAdminSettings();
-  const createBooking = useCreateBooking();
+  
+  const { data: pageContent } = useServicesPageContent();
+  const updatePageContent = useUpdateServicesPageContent();
+  const langLabel = lang === "es" ? "Español" : lang === "en" ? "English" : "Euskara";
+  const calendarLocale = lang === "eu" ? eu : lang === "en" ? enGB : es;
 
   const [step, setStep] = useState<Step>(1);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+    return today;
+  });
+
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const dateStr = selectedDate ? selectedDate.toISOString().slice(0, 10) : "";
-  const { data: dayBookings = [] } = useBookingsByDate(dateStr);
+  const todayStr = getLocalDateStr();
+  const dateStr = selectedDate ? getLocalDateStr(selectedDate) : "";
+  const service = dbServices.find((s: any) => s.id === selectedServiceId) as any;
+  const [dayBookings, setDayBookings] = useState<any[]>([]);
+  
+  const isEmergencyClosedToday = settings?.today_closed && settings?.today_closed_date === todayStr;
 
-  const service = dbServices.find((s) => s.id === selectedServiceId);
-  const categories = [...new Set(dbServices.map((s) => s.category))];
-  const catLabels: Record<string, string> = { peluqueria: "Peluquería", masajes: "Masajes & Bienestar" };
+  // 🔥 CORRECCIÓN AQUÍ: Blindado contra undefined
+  const isDateDisabled = (date?: Date) => {
+    if (!date) return true; // Si no hay fecha, no deshabilitamos nada (evita el error)
+  
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (date < today) return true;
+    if (date.getDay() === 0) return true; 
+    
+    const dStr = getLocalDateStr(date);
+    if (isEmergencyClosedToday && dStr === todayStr) return true;
 
-  // Calculate occupied slots based on existing bookings and service duration
-  const occupiedSlots = useMemo(() => {
-    if (!service) return new Set<string>();
-    const occupied = new Set<string>();
-    const serviceDuration = service.duration_min;
-
-    for (const booking of dayBookings) {
-      if (booking.status === "cancelled") continue;
-      const bStart = timeToMinutes(booking.start_time);
-      const bEnd = timeToMinutes(booking.end_time);
-
-      // If booking has sandwich and phase2 is released, only block phase1+phase3
-      const isPhase2Free = booking.phase2_released;
-
-      for (const slot of ALL_SLOTS) {
-        const slotStart = timeToMinutes(slot);
-        const slotEnd = slotStart + serviceDuration;
-
-        if (isPhase2Free) {
-          // Only block if overlaps with phase1 or phase3 (not phase2)
-          // Approximate: phase1 = bStart..bStart+phase1, phase3 = bEnd-phase3..bEnd
-          // For simplicity, block the full range minus phase2
-          if (slotStart < bEnd && slotEnd > bStart) {
-            // More nuanced: allow if the slot fits entirely within the phase2 window
-            // We don't have phase details on the booking itself, so just check overlap
-            occupied.add(slot);
-          }
-        } else {
-          if (slotStart < bEnd && slotEnd > bStart) {
-            occupied.add(slot);
-          }
-        }
+    if (settings?.vacation_ranges && settings.vacation_ranges.length > 0) {
+      for (const range of settings.vacation_ranges) {
+        if (dStr >= range.start && dStr <= range.end) return true;
       }
     }
-    return occupied;
-  }, [dayBookings, service]);
-
-  // Check if bookings are disabled
-  const bookingsDisabled = settings?.bookings_enabled === false;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const isTodayClosed = settings?.today_closed && settings?.today_closed_date === todayStr;
-
-  const isDateInVacation = (date: Date) => {
-    if (!settings?.vacation_start || !settings?.vacation_end) return false;
-    const d = date.toISOString().slice(0, 10);
-    return d >= settings.vacation_start && d <= settings.vacation_end;
+    
+    return false;
   };
 
-  const filteredServices = selectedCategory
-    ? dbServices.filter((s) => s.category === selectedCategory)
-    : [];
+  useEffect(() => {
+    if (selectedDate && settings && isDateDisabled(selectedDate)) {
+      setSelectedDate(undefined);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
+
+  useEffect(() => {
+    if (!dateStr) {
+      setDayBookings([]);
+      return;
+    }
+    const fetchBookings = async () => {
+      try {
+        const q = query(collection(db, "bookings"), where("date", "==", dateStr));
+        const snapshot = await getDocs(q);
+        const bookingsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDayBookings(bookingsData);
+      } catch (error) {
+        console.error("Error cargando disponibilidad de Firebase:", error);
+      }
+    };
+    fetchBookings();
+  }, [dateStr, submitted]);
+
+  const currentStaff = (settings as any)?.staff || defaultStaff;
+
+  const { occupiedSlots, slotAssignments } = useMemo(() => {
+    // 🔥 CORRECCIÓN AQUÍ: Separadas las comprobaciones para no evaluar undefined
+    if (!service || !selectedDate) {
+      return { occupiedSlots: new Set<string>(), slotAssignments: {} };
+    }
+
+    if (isDateDisabled(selectedDate)) {
+      return { occupiedSlots: new Set<string>(ALL_SLOTS), slotAssignments: {} };
+    }
+
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+
+    const { occupied, assignments } = calculateAvailability(
+      ALL_SLOTS, service, dayBookings, currentStaff, selectedDate, getLocalDateStr(selectedDate) === todayStr, currentMins
+    );
+
+    return { occupiedSlots: occupied, slotAssignments: assignments };
+  }, [dayBookings, service, selectedDate, settings]); 
+
+  const bookingsDisabled = settings?.bookings_enabled === false;
+  const categories = [...new Set(dbServices.map((s: any) => normalizeCategory(s.category)))].filter(Boolean) as string[];
+  const catLabels: Record<string, string> = { peluqueria: "Peluquería", masajes: "Masajes & Bienestar" };
+
+  const displayTitle = pageContent?.[`booking_title_${lang}`] || t("booking.title");
+  const displaySubtitle = pageContent?.[`booking_subtitle_${lang}`] || t("booking.subtitle");
+  const displayStep1 = pageContent?.[`booking_step1_${lang}`] || t("booking.whatNeed");
+  const displayStep2 = pageContent?.[`booking_step2_${lang}`] || t("booking.chooseDate");
+  const displayStep3 = pageContent?.[`booking_step3_${lang}`] || t("booking.chooseTime");
+  const displayStep4 = pageContent?.[`booking_step4_${lang}`] || t("booking.contactData");
+
+  const getCatLabel = (cat: string) => {
+    return pageContent?.[`cat_${cat}_${lang}`] || catLabels[cat] || cat;
+  };
+
+  const filteredServices = selectedCategory ? dbServices.filter((s: any) => normalizeCategory(s.category) === selectedCategory) : [];
 
   const canAdvance = () => {
     if (step === 1) return !!selectedServiceId;
-    if (step === 2) return !!selectedDate;
+    if (step === 2) return !!selectedDate && !isDateDisabled(selectedDate);
     if (step === 3) return !!selectedTime;
     if (step === 4) return name.trim().length >= 2 && phone.trim().length >= 9 && acceptPrivacy;
     return false;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!service || !selectedDate || !selectedTime) return;
-    const startMin = timeToMinutes(selectedTime);
-    const endTime = minutesToTime(startMin + service.duration_min);
+    setIsSubmitting(true);
+    
+    try {
+      const selectedDateStr = getLocalDateStr(selectedDate);
 
-    createBooking.mutate(
-      {
-        service_id: service.id,
-        booking_date: dateStr,
-        start_time: selectedTime,
-        end_time: endTime,
-        client_name: name.trim(),
-        client_phone: phone.trim(),
-        client_email: email.trim() || undefined,
-        current_phase: service.phase1_min ? "phase1" : "active",
-      },
-      {
-        onSuccess: () => {
-          toast.success("¡Cita reservada con éxito!", { description: "Recibirás confirmación pronto." });
-          setSubmitted(true);
-        },
-        onError: (err) => toast.error(err.message || "Error al reservar"),
+      const q = query(collection(db, "bookings"), where("date", "==", selectedDateStr));
+      const snap = await getDocs(q);
+      const freshBookings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      const now = new Date();
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+
+      const { occupied, assignments } = calculateAvailability(
+        ALL_SLOTS, service, freshBookings, currentStaff, selectedDate, selectedDateStr === todayStr, currentMins
+      );
+
+      if (occupied.has(selectedTime)) {
+        toast.error("¡Ese horario acaba de ser reservado por otra persona!", {
+          description: "Por favor, selecciona otra hora disponible.",
+        });
+        setDayBookings(freshBookings); 
+        setStep(3); 
+        setIsSubmitting(false);
+        return; 
       }
-    );
+
+      const startMin = timeToMinutes(selectedTime);
+      const duration = service.duration_min || service.durationMin || 0;
+      const endTimeStr = minutesToTime(startMin + duration);
+
+      const bookingPayload = {
+        client_name: name.trim(),
+        client_email: email.trim() || "eruiz084@ikasle.ehu.eus", 
+        client_phone: phone.trim(),
+        service_id: service.id,
+        employee_id: assignments[selectedTime] || "ana_id",
+        date: selectedDateStr,
+        start_time: selectedTime, 
+        end_time: endTimeStr, 
+        status: "pending",
+        created_at: new Date().toISOString(),
+        duration_min: duration,
+        phase1_min: service.phase1_min || 0,
+        phase2_min: service.phase2_min || 0,
+        phase3_min: service.phase3_min || 0,
+      };
+
+      const docRef = await addDoc(collection(db, "bookings"), bookingPayload);
+
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+        
+        await fetch(`${API_URL}/bookings/after-create`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: docRef.id,
+            service_name: getServiceName(service),
+            ...bookingPayload
+          })
+        });
+      } catch (e) {
+        console.warn("La cita se guardó correctamente pero el backend de emails no respondió.", e);
+      }
+
+      toast.success("¡Cita reservada con éxito!", { description: "Te esperamos en el salón." });
+      setSubmitted(true);
+    } catch (error: any) {
+      console.error("Error al hacer la reserva:", error);
+      toast.error("Error al reservar", { description: "Hubo un problema de conexión. Inténtalo de nuevo." });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
+  const upcomingVacations = settings?.vacation_ranges?.filter((v: any) => v.end >= todayStr) || [];
 
   if (bookingsDisabled) {
     return (
-      <main className="pt-16 min-h-screen flex items-center justify-center">
+      <main className="pt-16 min-h-screen flex items-center justify-center bg-warm-white">
         <div className="container max-w-md text-center px-6">
           <ScrollReveal>
-            <h1 className="font-serif text-3xl text-foreground mb-3">Reservas Pausadas</h1>
-            <p className="text-muted-foreground">Las reservas online están temporalmente desactivadas. Llámanos para reservar.</p>
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CalendarIcon size={32} className="text-amber-600" />
+            </div>
+            <h1 className="font-serif text-3xl text-foreground mb-4">Mantenimiento</h1>
+            <p className="text-muted-foreground mb-8 leading-relaxed">
+              El sistema de reservas online está pausado temporalmente. Pero no te preocupes, ¡puedes pedir tu cita directamente contactando con nosotros!
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button variant="hero" size="lg" className="w-full h-14 text-base gap-2" asChild>
+                <a href="https://wa.me/34943000000?text=Hola,%20quer%C3%ADa%20pedir%20una%20cita" target="_blank" rel="noopener noreferrer">
+                  <MessageCircle size={20} /> Escribir por WhatsApp
+                </a>
+              </Button>
+              <Button variant="outline" size="lg" className="w-full h-14 text-base gap-2 border-sand-dark text-sand-dark hover:bg-sand-light/20" asChild>
+                <a href="tel:+34943000000">
+                  <Phone size={20} /> Llamar al salón
+                </a>
+              </Button>
+            </div>
           </ScrollReveal>
         </div>
       </main>
@@ -175,7 +316,7 @@ const Reservation = () => {
             <div className="bg-card rounded-lg p-6 shadow-sm text-left space-y-3 mb-8">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Servicio</span>
-                <span className="text-foreground font-medium">{getLocalizedLabel(service, lang)}</span>
+                <span className="text-foreground font-medium">{getServiceName(service)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Fecha</span>
@@ -189,13 +330,13 @@ const Reservation = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Duración</span>
-                <span className="text-foreground font-medium">{service.duration_min} min</span>
+                <span className="text-foreground font-medium">{service.duration_min || service.durationMin} min</span>
               </div>
             </div>
             <div className="space-y-3">
               <Button variant="hero" size="lg" className="w-full h-14 text-base gap-2" asChild>
                 <a
-                  href={`https://wa.me/34943000000?text=${encodeURIComponent(`Hola, he reservado ${getLocalizedLabel(service, lang)} el ${selectedDate?.toLocaleDateString("es-ES")} a las ${selectedTime}`)}`}
+                  href={`https://wa.me/34943000000?text=${encodeURIComponent(`Hola, he reservado ${getServiceName(service)} el ${selectedDate?.toLocaleDateString("es-ES")} a las ${selectedTime}`)}`}
                   target="_blank" rel="noopener noreferrer"
                 >
                   <MessageCircle size={18} /> Contactar por WhatsApp
@@ -216,15 +357,29 @@ const Reservation = () => {
       <section className="py-10 md:py-20">
         <div className="container max-w-lg">
           <ScrollReveal>
-            <h1 className="font-serif text-3xl md:text-4xl text-foreground text-center mb-2" style={{ lineHeight: "1.1" }}>
-              {t("booking.title")}
-            </h1>
-            <p className="text-center text-sm text-muted-foreground mb-8">
-              {t("booking.subtitle")}
-            </p>
+            <div className="text-center mb-2">
+              <EditableText
+                value={displayTitle}
+                onSave={async (val) => await updatePageContent.mutateAsync({ [`booking_title_${lang}`]: val })}
+                isEditing={isEditingView}
+                as="h1"
+                className="font-serif text-3xl md:text-4xl text-foreground inline-block"
+                style={{ lineHeight: "1.1" }}
+                langLabel={langLabel}
+              />
+            </div>
+            <div className="text-center text-sm text-muted-foreground mb-8">
+              <EditableText
+                value={displaySubtitle}
+                onSave={async (val) => await updatePageContent.mutateAsync({ [`booking_subtitle_${lang}`]: val })}
+                isEditing={isEditingView}
+                as="span"
+                className="inline-block"
+                langLabel={langLabel}
+              />
+            </div>
           </ScrollReveal>
 
-          {/* Progress */}
           <ScrollReveal delay={100}>
             <div className="flex items-center gap-2 mb-8 max-w-xs mx-auto">
               {Array.from({ length: totalSteps }).map((_, i) => {
@@ -245,44 +400,63 @@ const Reservation = () => {
             </div>
           </ScrollReveal>
 
-          {/* Step 1 — Category + Service */}
           {step === 1 && (
             <ScrollReveal>
-              <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("booking.whatNeed")}
-              </h2>
+              <div className="text-center mb-6">
+                <EditableText
+                  value={displayStep1}
+                  onSave={async (val) => await updatePageContent.mutateAsync({ [`booking_step1_${lang}`]: val })}
+                  isEditing={isEditingView}
+                  as="h2"
+                  className="font-serif text-xl text-foreground inline-block"
+                  langLabel={langLabel}
+                />
+              </div>
               {loadingServices ? (
-                <p className="text-center text-sm text-muted-foreground">Cargando servicios…</p>
+                <div className="flex justify-center items-center py-6">
+                   <div className="w-6 h-6 border-2 border-sand-dark/20 border-t-sand-dark rounded-full animate-spin mr-3"></div>
+                   <p className="text-sm text-muted-foreground">Cargando servicios…</p>
+                </div>
               ) : (
                 <>
                   <div className="flex gap-3 mb-6">
                     {categories.map((cat) => (
                       <button
                         key={cat}
-                        onClick={() => { setSelectedCategory(cat); setSelectedServiceId(null); }}
-                        className={`flex-1 py-3.5 rounded-lg text-xs font-sans uppercase tracking-widest-plus transition-all duration-200 active:scale-[0.97] ${
+                        onClick={() => { if (!isEditingView) { setSelectedCategory(cat); setSelectedServiceId(null); } }}
+                        className={`flex-1 py-3.5 rounded-lg text-xs font-sans uppercase tracking-widest-plus transition-all duration-200 ${!isEditingView ? 'active:scale-[0.97]' : ''} ${
                           selectedCategory === cat
                             ? "bg-charcoal text-cream shadow-md"
                             : "bg-card text-muted-foreground shadow-sm hover:shadow-md"
                         }`}
                       >
-                        {catLabels[cat] || cat}
+                        <EditableText
+                          value={getCatLabel(cat)}
+                          onSave={async (val) => await updatePageContent.mutateAsync({ [`cat_${cat}_${lang}`]: val })}
+                          isEditing={isEditingView}
+                          as="span"
+                          langLabel={langLabel}
+                        />
                       </button>
                     ))}
                   </div>
                   {selectedCategory && (
                     <div className="grid grid-cols-1 gap-3">
-                      {filteredServices.map((svc) => {
+                      {filteredServices.map((svc: any) => {
                         const Icon = iconMap[svc.icon_name] || Scissors;
                         const isSelected = selectedServiceId === svc.id;
+                        
+                        const name = getServiceName(svc);
+                        const duration = svc.duration_min || svc.durationMin || 0;
                         const priceStr = svc.price_cents
                           ? `${svc.price_from ? "Desde " : ""}${(svc.price_cents / 100).toFixed(0)}€`
-                          : "";
+                          : svc.price ? `${svc.price_from ? "Desde " : ""}${svc.price}€` : "";
+
                         return (
                           <button
                             key={svc.id}
-                            onClick={() => setSelectedServiceId(svc.id)}
-                            className={`flex items-center gap-4 p-5 rounded-lg text-left transition-all duration-200 active:scale-[0.98] ${
+                            onClick={() => { if(!isEditingView) setSelectedServiceId(svc.id); }}
+                            className={`flex items-center gap-4 p-5 rounded-lg text-left transition-all duration-200 ${!isEditingView ? 'active:scale-[0.98]' : ''} ${
                               isSelected ? "bg-charcoal text-cream shadow-md" : "bg-card text-foreground shadow-sm hover:shadow-md"
                             }`}
                           >
@@ -292,9 +466,9 @@ const Reservation = () => {
                               <Icon size={18} className={isSelected ? "text-cream" : "text-sand-dark"} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="block text-base font-medium">{getLocalizedLabel(svc, lang)}</span>
+                              <span className="block text-base font-medium">{name}</span>
                               <span className={`text-xs ${isSelected ? "text-cream/70" : "text-muted-foreground"}`}>
-                                {svc.duration_min} min {priceStr && `· ${priceStr}`}
+                                {duration} min {priceStr && `· ${priceStr}`}
                               </span>
                             </div>
                             {isSelected && <Check size={18} />}
@@ -308,44 +482,67 @@ const Reservation = () => {
             </ScrollReveal>
           )}
 
-          {/* Step 2 — Calendar */}
           {step === 2 && (
             <ScrollReveal>
-              <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("booking.chooseDate")}
-              </h2>
-              <div className="flex justify-center">
+              <div className="text-center mb-6">
+                <EditableText
+                  value={displayStep2}
+                  onSave={async (val) => await updatePageContent.mutateAsync({ [`booking_step2_${lang}`]: val })}
+                  isEditing={isEditingView}
+                  as="h2"
+                  className="font-serif text-xl text-foreground inline-block"
+                  langLabel={langLabel}
+                />
+              </div>
+              
+              {upcomingVacations.length > 0 && (
+                <div className="mb-6 p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 text-xs text-center mx-auto">
+                  <p className="font-semibold mb-1">✈️ Fechas cerradas por vacaciones:</p>
+                  {upcomingVacations.map((v: any, i: number) => (
+                    <p key={i}>Del {v.start.split('-').reverse().join('/')} al {v.end.split('-').reverse().join('/')}</p>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-center mb-6">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
-                  onSelect={(date) => { setSelectedDate(date); setSelectedTime(null); }}
-                  disabled={(date) => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    if (date < today) return true;
-                    if (date.getDay() === 0) return true;
-                    if (isDateInVacation(date)) return true;
-                    const dStr = date.toISOString().slice(0, 10);
-                    if (isTodayClosed && dStr === todayStr) return true;
-                    return false;
+                  onSelect={(date) => { 
+                    if(date && !isEditingView) {
+                      setSelectedDate(date); 
+                      setSelectedTime(null); 
+                    }
                   }}
-                  className="pointer-events-auto bg-card rounded-lg shadow-sm p-4"
+                  disabled={isDateDisabled}
+                  locale={calendarLocale} 
+                  weekStartsOn={1} 
+                  className={`bg-card rounded-lg shadow-sm p-4 ${!isEditingView ? 'pointer-events-auto' : 'opacity-75 pointer-events-none'}`}
                 />
               </div>
               {selectedDate && (
-                <p className="text-center text-sm text-foreground mt-4 tabular-nums">
-                  {selectedDate.toLocaleDateString(lang === "eu" ? "eu" : lang === "en" ? "en-GB" : "es-ES", { weekday: "long", day: "numeric", month: "long" })}
-                </p>
+                <div className="max-w-xs mx-auto p-4 bg-sand-light/20 rounded-xl border border-sand-dark/20 text-center animate-in fade-in zoom-in-95">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest-plus mb-1">Día seleccionado:</p>
+                  <p className="text-lg font-serif text-sand-dark capitalize">
+                    {selectedDate.toLocaleDateString(lang === "eu" ? "eu" : lang === "en" ? "en-GB" : "es-ES", { weekday: "long", day: "numeric", month: "long" })}
+                  </p>
+                </div>
               )}
             </ScrollReveal>
           )}
 
-          {/* Step 3 — Time */}
           {step === 3 && (
             <ScrollReveal>
-              <h2 className="font-serif text-xl text-foreground mb-2 text-center">
-                {t("booking.chooseTime")}
-              </h2>
+              <div className="text-center mb-2">
+                <EditableText
+                  value={displayStep3}
+                  onSave={async (val) => await updatePageContent.mutateAsync({ [`booking_step3_${lang}`]: val })}
+                  isEditing={isEditingView}
+                  as="h2"
+                  className="font-serif text-xl text-foreground inline-block"
+                  langLabel={langLabel}
+                />
+              </div>
               <p className="text-center text-xs text-muted-foreground mb-6 capitalize tabular-nums">
                 {selectedDate?.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
               </p>
@@ -356,9 +553,9 @@ const Reservation = () => {
                   return (
                     <button
                       key={time}
-                      disabled={isOccupied}
+                      disabled={isOccupied || isEditingView}
                       onClick={() => setSelectedTime(time)}
-                      className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 active:scale-95 ${
+                      className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 ${!isEditingView ? 'active:scale-95' : ''} ${
                         isOccupied
                           ? "bg-secondary/50 text-muted-foreground/40 cursor-not-allowed line-through"
                           : isSelected
@@ -374,18 +571,24 @@ const Reservation = () => {
             </ScrollReveal>
           )}
 
-          {/* Step 4 — Contact */}
           {step === 4 && (
             <ScrollReveal>
-              <h2 className="font-serif text-xl text-foreground mb-6 text-center">
-                {t("booking.contactData")}
-              </h2>
+              <div className="text-center mb-6">
+                <EditableText
+                  value={displayStep4}
+                  onSave={async (val) => await updatePageContent.mutateAsync({ [`booking_step4_${lang}`]: val })}
+                  isEditing={isEditingView}
+                  as="h2"
+                  className="font-serif text-xl text-foreground inline-block"
+                  langLabel={langLabel}
+                />
+              </div>
               <div className="bg-card rounded-lg p-6 shadow-sm space-y-5">
                 <div>
                   <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
                     <User size={14} /> {t("booking.name")}
                   </label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={isEditingView}
                     className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                     placeholder={t("booking.namePlaceholder")} autoComplete="name" />
                 </div>
@@ -393,7 +596,7 @@ const Reservation = () => {
                   <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
                     <Phone size={14} /> {t("booking.phone")}
                   </label>
-                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isEditingView}
                     className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                     placeholder="600 000 000" autoComplete="tel" />
                 </div>
@@ -401,13 +604,13 @@ const Reservation = () => {
                   <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
                     <Mail size={14} /> Email
                   </label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isEditingView}
                     className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                     placeholder="tu@email.com" autoComplete="email" />
                 </div>
                 <div className="pt-2">
                   <label className="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                    <input type="checkbox" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)} disabled={isEditingView}
                       className="mt-1 w-5 h-5 rounded border-border text-sand-dark focus:ring-ring shrink-0" />
                     <span className="text-xs text-muted-foreground leading-relaxed">
                       {t("booking.privacyText")}{" "}
@@ -421,7 +624,7 @@ const Reservation = () => {
                   <p className="text-xs font-sans uppercase tracking-wide text-muted-foreground mb-3">{t("booking.summary")}</p>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{t("booking.service")}</span>
-                    <span className="text-foreground font-medium">{service ? getLocalizedLabel(service, lang) : ""}</span>
+                    <span className="text-foreground font-medium">{service ? getServiceName(service) : ""}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{t("booking.date")}</span>
@@ -435,37 +638,36 @@ const Reservation = () => {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{t("booking.duration")}</span>
-                    <span className="text-foreground font-medium">{service?.duration_min} min</span>
+                    <span className="text-foreground font-medium">{service?.duration_min || service?.durationMin} min</span>
                   </div>
                 </div>
               </div>
             </ScrollReveal>
           )}
 
-          {/* Navigation */}
           <ScrollReveal delay={200}>
             <div className="flex gap-3 mt-8">
               {step > 1 && (
                 <Button variant="outline" size="lg" className="flex-1 h-14 text-base gap-2"
+                  disabled={isEditingView}
                   onClick={() => setStep((step - 1) as Step)}>
                   <ArrowLeft size={16} /> {t("booking.back")}
                 </Button>
               )}
               {step < totalSteps ? (
                 <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={!canAdvance()} onClick={() => setStep((step + 1) as Step)}>
+                  disabled={!canAdvance() || isEditingView} onClick={() => setStep((step + 1) as Step)}>
                   {t("booking.next")} <ArrowRight size={16} />
                 </Button>
               ) : (
                 <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={!canAdvance() || createBooking.isPending} onClick={handleSubmit}>
-                  <Check size={16} /> {t("booking.confirm")}
+                  disabled={!canAdvance() || isSubmitting || isEditingView} onClick={handleSubmit}>
+                  {isSubmitting ? "Procesando..." : <><Check size={16} /> {t("booking.confirm")}</>}
                 </Button>
               )}
             </div>
           </ScrollReveal>
 
-          {/* FAQ */}
           <BookingFAQ />
         </div>
       </section>

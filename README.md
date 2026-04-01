@@ -22,11 +22,3 @@ The goal of this application is twofold:
 * **Backend / BaaS:** Firebase (Auth, Firestore for DB, Storage for media)
 * **Integrations:** Google Calendar API v3
 * **Icons & UI:** Lucide React / Phosphor Icons
-
-## 🚀 Getting Started
-
-To run this project locally, you will need to set up the appropriate environment variables.
-
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/your-username/ag-beauty-salon.git](https://github.com/your-username/ag-beauty-salon.git)

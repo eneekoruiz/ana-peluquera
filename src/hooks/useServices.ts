@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, getDoc, doc, setDoc, updateDoc, query } from "firebase/firestore";
 
 export interface DBService {
   id: string;
@@ -20,31 +21,66 @@ export interface DBService {
   phase3_min: number | null;
   sort_order: number | null;
   visible: boolean | null;
+  [key: string]: any;
 }
 
+/** Hook para obtener los servicios DIRECTAMENTE desde Firebase */
 export const useServices = (includeHidden = false) => {
   return useQuery({
     queryKey: ["services", includeHidden],
     queryFn: async () => {
-      let query = supabase.from("services").select("*").order("sort_order");
+      const q = query(collection(db, "services"));
+      const snapshot = await getDocs(q);
+      
+      let data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as DBService[];
+
       if (!includeHidden) {
-        query = query.eq("visible", true);
+        data = data.filter(s => s.visible !== false); 
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as DBService[];
+
+      data.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      return data;
     },
   });
 };
 
 export const getLocalizedLabel = (svc: DBService, lang: string) => {
-  if (lang === "en") return svc.label_en;
-  if (lang === "eu") return svc.label_eu;
-  return svc.label_es;
+  if (lang === "en") return svc.label_en || svc.name || "";
+  if (lang === "eu") return svc.label_eu || svc.name || "";
+  return svc.label_es || svc.name || "";
 };
 
 export const getLocalizedDescription = (svc: DBService, lang: string) => {
-  if (lang === "en") return svc.description_en || "";
-  if (lang === "eu") return svc.description_eu || "";
-  return svc.description_es || "";
+  if (lang === "en") return svc.description_en || svc.description || "";
+  if (lang === "eu") return svc.description_eu || svc.description || "";
+  return svc.description_es || svc.description || "";
+};
+
+// 🔥 NUEVO: Hooks para editar el Título y Subtítulo de la página
+export const useServicesPageContent = () => {
+  return useQuery({
+    queryKey: ["services_page_content"],
+    queryFn: async () => {
+      const ref = doc(db, "site_content", "services_page");
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return {};
+      return snap.data();
+    }
+  });
+};
+
+export const useUpdateServicesPageContent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: any) => {
+      const ref = doc(db, "site_content", "services_page");
+      const snap = await getDoc(ref);
+      if (!snap.exists()) await setDoc(ref, updates);
+      else await updateDoc(ref, updates);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["services_page_content"] })
+  });
 };
