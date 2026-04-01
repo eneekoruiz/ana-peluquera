@@ -3,7 +3,7 @@ import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
 import { createBooking, getAvailableSlots } from '@/lib/bookingService';
 import { cancelAppointment } from '@/lib/googleCalendar';
 
-// 🚀 Obligamos a Vercel a consultar Google Calendar en CADA visita
+// 🚀 Anti-caché estricto para sincronización en tiempo real
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -14,7 +14,7 @@ const corsHeaders = {
 };
 
 const CONTACT_INFO = {
-  whatsapp: "https://wa.me/34600000000", // Cambia esto
+  whatsapp: "https://wa.me/34600000000",
   phone: "943 00 00 00",
   message: "Si tienes problemas con tu reserva, contacta con Ana por WhatsApp."
 };
@@ -42,17 +42,17 @@ export async function GET(request: Request) {
 
     const firebaseBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // 2. 🚀 Sincronización con Google Calendar
+    // 2. 🚀 Sincronización con Google Calendar (Nivel Dios: 0 Errores)
     let manualEvents: any[] = [];
     try {
       const result = await getAvailableSlots(date);
       
-      // IMPORTANTE: getAvailableSlots devuelve { busy: [] }. 
-      // Usamos el array 'busy' para el mapeo.
-      const busySlots = result.busy || []; 
+      // VALIDACIÓN BLINDADA: Comprobamos si 'result' es directamente el array (BusyInterval[]) 
+      // o si es un objeto que contiene la propiedad 'busy' por si la función cambia en el futuro.
+      const busySlots = Array.isArray(result) ? result : ((result as any)?.busy || []);
 
       manualEvents = busySlots.map((slot: any, index: number) => {
-        // Limpiamos la fecha para que el frontend no se líe con UTC/Zonas
+        // Limpieza de Timezone para alinear Google Calendar con el Frontend a la perfección
         const startStr = new Date(slot.start).toISOString().substring(0, 19);
         const endStr = new Date(slot.end).toISOString().substring(0, 19);
 
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
         };
       });
     } catch (error) {
-      console.error("⚠️ Error leyendo Google Calendar:", error);
+      console.error("⚠️ Error silencioso leyendo Google Calendar:", error);
     }
 
     return NextResponse.json([...firebaseBookings, ...manualEvents], { 
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
     });
 
   } catch (error) {
-    console.error("❌ Error en GET Bookings:", error);
+    console.error("❌ Error CRÍTICO en GET Bookings:", error);
     return NextResponse.json({ error: 'Error al cargar la agenda', fallback: CONTACT_INFO }, { status: 500, headers: corsHeaders });
   }
 }
@@ -108,7 +108,7 @@ export async function DELETE(request: Request) {
       try {
         await cancelAppointment(data.googleEventId);
       } catch (e) {
-        console.warn("Evento ya borrado en Google");
+        console.warn("Evento ya borrado en Google Calendar, continuando limpieza en Firebase.");
       }
     }
 
