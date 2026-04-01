@@ -154,17 +154,19 @@ function getCapacityForDate(date: Date, currentWorkers: Worker[]): number {
 function toDateTime(value?: string): Date | null {
   if (!value) return null;
   
-  // Si la fecha viene de Google con zona horaria (ej: 2026-05-02T09:00:00+02:00)
-  // le cortamos la cola (+02:00) y le pegamos una "Z" para forzar al backend 
-  // a que hable en el mismo idioma "falso UTC" que el frontend.
-  if (value.includes('T')) {
-    const stripped = value.substring(0, 19);
-    const d = new Date(stripped + "Z");
+  // Si es un evento de todo el día (ej. "2026-04-06")
+  if (!value.includes('T')) {
+    const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
   }
+
+  // Si es un evento con horas (ej. "2026-04-06T11:05:00+02:00")
+  // Google nos manda el offset (+02:00), pero Vercel al hacer 'new Date()' lo resta 
+  // y lo pasa a UTC, destrozando la hora.
+  // EL TRUCO: Le decimos a Vercel que la hora que nos manda Google YA ES UTC.
+  const datePart = value.substring(0, 19); // Nos quedamos con "2026-04-06T11:05:00"
+  const d = new Date(datePart + "Z");      // Le pegamos la Z para anclarlo: 11:05 UTC real.
   
-  // Para los eventos de "Todo el día" (ej: "2026-05-02")
-  const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
