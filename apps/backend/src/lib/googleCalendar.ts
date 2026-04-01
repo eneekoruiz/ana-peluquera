@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { readFileSync } from "fs"; 
 import path from "path"; 
-// 👇 Importamos Firebase Admin (Asegúrate de que la ruta sea correcta hacia tu archivo firebaseAdmin.ts)
+// 👇 Importamos Firebase Admin (Asegúrate de que la ruta sea correcta)
 import { db } from "./firebaseAdmin"; 
 
 // --- TIPOS E INTERFACES ---
@@ -19,12 +19,25 @@ export interface CreateAppointmentRequest {
   phase3Min?: number;
 }
 
-// Interfaz para mapear los trabajadores de tu Firebase
 export interface Worker {
   id: string;
   name: string;
-  daysOfWeek: number[]; // Lo mapeamos internamente aunque en Firebase se llame 'workingDays'
-  skills: string[];     // Guardamos las habilidades para uso futuro
+  daysOfWeek: number[]; 
+  skills: string[];     
+}
+
+export interface VacationRange {
+  start: string; // "YYYY-MM-DD"
+  end: string;   // "YYYY-MM-DD"
+}
+
+// Interfaz para englobar toda la configuración del documento admin/settings
+export interface AdminSettings {
+  workers: Worker[];
+  bookingsEnabled: boolean;
+  todayClosed: boolean;
+  todayClosedDate: string | null;
+  vacationRanges: VacationRange[];
 }
 
 const SYSTEM_MARKER = "ag-beauty-salon";
@@ -32,39 +45,42 @@ const SYSTEM_MARKER = "ag-beauty-salon";
 let calendarClient: ReturnType<typeof google.calendar> | null = null;
 let jwtClient: any | null = null;
 
-// --- 📡 OBTENER TRABAJADORES DESDE FIREBASE ---
-async function getWorkers(): Promise<Worker[]> {
+// --- 📡 OBTENER CONFIGURACIÓN GLOBAL DESDE FIREBASE ---
+async function getAdminSettings(): Promise<AdminSettings> {
+  const defaultSettings: AdminSettings = {
+    workers: [{ id: "ana_id", name: "Ana (Responsable)", daysOfWeek: [1, 2, 3, 4, 5, 6], skills: ["peluqueria", "masajes"] }],
+    bookingsEnabled: true,
+    todayClosed: false,
+    todayClosedDate: null,
+    vacationRanges: []
+  };
+
   try {
-    // Apuntamos a la colección 'admin' y documento 'settings' (como en tu captura)
     const docRef = await db.collection("admin").doc("settings").get();
     
-    if (!docRef.exists) {
-      console.warn("⚠️ No se encontró admin/settings. Usando a Ana por defecto.");
-      return [{ id: "ana_id", name: "Ana (Responsable)", daysOfWeek: [1, 2, 3, 4, 5, 6], skills: ["peluqueria", "masajes"] }];
-    }
+    if (!docRef.exists) return defaultSettings;
 
-    const data = docRef.data();
-    const staffArray = data?.staff;
+    const data = docRef.data() || {};
+    const staffArray = data.staff || [];
 
-    if (!staffArray || !Array.isArray(staffArray) || staffArray.length === 0) {
-      console.warn("⚠️ El array 'staff' está vacío. Usando a Ana por defecto.");
-      return [{ id: "ana_id", name: "Ana (Responsable)", daysOfWeek: [1, 2, 3, 4, 5, 6], skills: ["peluqueria", "masajes"] }];
-    }
+    const workers = staffArray.map((worker: any) => ({
+      id: worker.id,
+      name: worker.name || "Sin Nombre",
+      daysOfWeek: worker.workingDays || [],
+      skills: worker.skills || []
+    }));
 
-    // Traducimos los datos de tu Firebase al formato interno
-    return staffArray.map((worker: any) => {
-      return {
-        id: worker.id,
-        name: worker.name || "Sin Nombre",
-        daysOfWeek: worker.workingDays || [], // Mapeamos 'workingDays' a 'daysOfWeek'
-        skills: worker.skills || []           // Extraemos 'skills'
-      };
-    }) as Worker[];
+    return {
+      workers: workers.length > 0 ? workers : defaultSettings.workers,
+      bookingsEnabled: data.bookings_enabled !== false, // Si no existe, asumimos true
+      todayClosed: !!data.today_closed,
+      todayClosedDate: data.today_closed_date || null,
+      vacationRanges: data.vacation_ranges || []
+    };
 
   } catch (error) {
-    console.error("❌ Error conectando con Firebase para sacar los trabajadores:", error);
-    // Salvavidas por si la base de datos no responde
-    return [{ id: "ana_id", name: "Ana (Responsable)", daysOfWeek: [1, 2, 3, 4, 5, 6], skills: ["peluqueria", "masajes"] }];
+    console.error("❌ Error obteniendo settings de Firebase:", error);
+    return defaultSettings;
   }
 }
 
@@ -81,7 +97,6 @@ function getGoogleAuthClient(): any {
 
   try {
       let creds;
-      // Magia para que funcione en Vercel (texto directo) y en Local (archivo físico)
       if (jsonPath.trim().startsWith('{')) {
           creds = JSON.parse(jsonPath);
       } else {
@@ -111,9 +126,27 @@ function getCalendar(): ReturnType<typeof google.calendar> {
 
 // --- HELPERS LÓGICOS ---
 
-// Calcula cuántos trabajadores hay currando un día concreto
+// Comprueba si un día concreto está cerrado por vacaciones o bloqueo manual
+function isDayClosed(dateString: string, settings: AdminSettings): boolean {
+  if (!settings.bookingsEnabled) return true;
+  
+  // Bloqueo puntual ("Cerrado hoy")
+  if (settings.todayClosed && settings.todayClosedDate === dateString) {
+    return true;
+  }
+
+  // Vacaciones (comprueba si la fecha cae dentro de algún rango)
+  for (const range of settings.vacationRanges) {
+    if (dateString >= range.start && dateString <= range.end) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getCapacityForDate(date: Date, currentWorkers: Worker[]): number {
-  const day = date.getDay(); // 0 = Dom, 1 = Lun, 2 = Mar...
+  const day = date.getDay(); 
   const workersToday = currentWorkers.filter(w => w.daysOfWeek.includes(day));
   return workersToday.length;
 }
@@ -125,7 +158,7 @@ function toDateTime(value?: string): Date | null {
   return d;
 }
 
-// Algoritmo de Sweepline: Detecta huecos bloqueados solo cuando se supera la capacidad máxima de la peluquería
+// Sweepline: Detecta solapamientos usando la capacidad
 function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number): BusyInterval[] {
     if (intervals.length === 0 || maxCapacity === 0) return [];
     
@@ -135,7 +168,6 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
         events.push({ time: interval.end.getTime(), type: 'end', originalInterval: interval });
     }
 
-    // Ordenar cronológicamente
     events.sort((a, b) => {
         if (a.time !== b.time) return a.time - b.time;
         if (a.type === 'end' && b.type === 'start') return -1;
@@ -151,12 +183,12 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
         if (event.type === 'start') {
             active++;
             if (active >= maxCapacity && fullPeriodStart === null) {
-                fullPeriodStart = event.time; // Peluquería llena
+                fullPeriodStart = event.time;
             }
         } else {
             if (active >= maxCapacity && fullPeriodStart !== null && (active - 1) < maxCapacity) {
                 busyPeriods.push({ start: new Date(fullPeriodStart), end: new Date(event.time) });
-                fullPeriodStart = null; // Vuelve a haber hueco
+                fullPeriodStart = null;
             }
             active--;
         }
@@ -164,7 +196,6 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
 
     if (busyPeriods.length === 0) return [];
     
-    // Fusionar periodos adyacentes por si acaso
     const merged: BusyInterval[] = [];
     let current = busyPeriods[0];
 
@@ -186,7 +217,6 @@ function isOurAppointment(event: any) {
   return event?.extendedProperties?.private?.system === SYSTEM_MARKER;
 }
 
-// Saca los tiempos de las fases para la lógica del "Sándwich"
 function getSandwichPhaseMinutesFromEvent(event: any) {
   const priv = event?.extendedProperties?.private ?? {};
   const phase1Min = priv.phase1Min ? Number(priv.phase1Min) : null;
@@ -204,10 +234,25 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   const calendar = getCalendar();
   const calendarId = getGoogleCalendarId();
 
-  // 1. 📡 Descargamos los trabajadores de Firebase
-  const dbWorkers = await getWorkers();
+  // 1. 📡 Descargamos TODA la configuración de Firebase
+  const settings = await getAdminSettings();
 
-  // 2. Traemos todos los eventos de Google Calendar en ese rango
+  // 2. Pre-poblamos un diccionario con TODOS los días del rango solicitado.
+  // Esto es crucial porque si un día está de vacaciones y no tiene eventos en Google, hay que bloquearlo igual.
+  const intervalsByDay: Record<string, BusyInterval[]> = {};
+  let curr = new Date(dateRange.start);
+  curr.setHours(0, 0, 0, 0);
+  const limit = new Date(dateRange.end);
+  
+  while (curr <= limit) {
+    const y = curr.getFullYear();
+    const m = String(curr.getMonth() + 1).padStart(2, '0');
+    const d = String(curr.getDate()).padStart(2, '0');
+    intervalsByDay[`${y}-${m}-${d}`] = [];
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  // 3. Traemos todos los eventos de Google Calendar
   const res = await calendar.events.list({
     calendarId,
     timeMin: dateRange.start.toISOString(),
@@ -216,9 +261,6 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     orderBy: "startTime",
     maxResults: 2500,
   });
-
-  // Agrupamos los eventos por día (YYYY-MM-DD)
-  const intervalsByDay: Record<string, BusyInterval[]> = {};
 
   for (const event of res.data.items ?? []) {
     if (!event.start || !event.end) continue;
@@ -240,7 +282,6 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       continue;
     }
 
-    // Lógica del Sándwich: Ocupamos la Fase 1 y Fase 3, liberando la Fase 2 (espera)
     const phase1End = new Date(start.getTime() + phaseMinutes.phase1Min * 60_000);
     const phase3Start = new Date(end.getTime() - phaseMinutes.phase3Min * 60_000);
 
@@ -255,11 +296,33 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
 
   let finalBusyIntervals: BusyInterval[] = [];
 
-  // 3. Procesar día por día aplicando la capacidad dinámica
+  // 4. Procesar día por día aplicando la capacidad, vacaciones y cierres
   for (const [dateString, intervals] of Object.entries(intervalsByDay)) {
-      const date = new Date(dateString);
-      const maxCapacity = getCapacityForDate(date, dbWorkers);
+      const [y, m, d] = dateString.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+
+      // A. ¿La peluquería está cerrada por vacaciones o botón de "cerrar hoy"?
+      if (isDayClosed(dateString, settings)) {
+          finalBusyIntervals.push({ 
+            start: new Date(y, m - 1, d, 0, 0, 0), 
+            end: new Date(y, m - 1, d, 23, 59, 59), 
+            sourceEventId: "closed_by_admin" 
+          });
+          continue;
+      }
+
+      // B. ¿Hay trabajadores este día?
+      const maxCapacity = getCapacityForDate(date, settings.workers);
+      if (maxCapacity === 0) {
+          finalBusyIntervals.push({ 
+            start: new Date(y, m - 1, d, 0, 0, 0), 
+            end: new Date(y, m - 1, d, 23, 59, 59), 
+            sourceEventId: "no_workers" 
+          });
+          continue;
+      }
       
+      // C. Si está abierta y hay trabajadores, calculamos los solapamientos normales
       const busyForDay = getOverlappingIntervals(intervals, maxCapacity);
       finalBusyIntervals.push(...busyForDay);
   }
@@ -278,15 +341,21 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
 
   const startStr = req.start.toISOString();
   const endStr = req.end.toISOString();
+  const dateString = req.start.toISOString().split('T')[0];
 
-  // 1. 📡 Descargamos los trabajadores de Firebase
-  const dbWorkers = await getWorkers();
+  // 1. 📡 Descargamos configuración de Firebase
+  const settings = await getAdminSettings();
 
-  // 2. Ver qué trabajadores de la BD están currando este día
+  // 2. Seguridad extra: Si justo intentan reservar un día que acaban de cerrar en el panel
+  if (isDayClosed(dateString, settings)) {
+      throw new Error("La peluquería está cerrada en esta fecha.");
+  }
+
+  // 3. Ver qué trabajadores están currando este día
   const dayOfWeek = req.start.getDay();
-  const workersToday = dbWorkers.filter(w => w.daysOfWeek.includes(dayOfWeek));
+  const workersToday = settings.workers.filter(w => w.daysOfWeek.includes(dayOfWeek));
 
-  // 3. Ver quiénes están ocupados a esa hora exacta en Google Calendar
+  // 4. Ver quiénes están ocupados a esa hora en Google Calendar
   const existingEvents = await calendar.events.list({
       calendarId,
       timeMin: startStr,
@@ -296,13 +365,13 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
 
   const busyWorkerNames = (existingEvents.data.items || []).map(event => {
       return event.extendedProperties?.private?.workerName;
-  }).filter(Boolean); // Filtramos los nulos
+  }).filter(Boolean);
 
-  // 4. Asignar al primer trabajador de turno que NO esté en la lista de ocupados
+  // 5. Asignar al primer trabajador libre (o a Ana por defecto)
   const freeWorker = workersToday.find(w => !busyWorkerNames.includes(w.name)) || workersToday[0];
   const assignedTo = freeWorker ? freeWorker.name : "Ana (Responsable)";
 
-  // 5. Crear el evento en Google Calendar
+  // 6. Crear el evento en Google Calendar
   const event = await calendar.events.insert({
     calendarId,
     requestBody: {
@@ -315,7 +384,7 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
           system: SYSTEM_MARKER,
           bookingId: req.bookingId,
           serviceId: req.serviceId,
-          workerName: assignedTo, // Guardamos a quién se le asignó como rastro
+          workerName: assignedTo, 
           phase1Min: req.phase1Min != null ? String(req.phase1Min) : "",
           phase2Min: req.phase2Min != null ? String(req.phase2Min) : "",
           phase3Min: req.phase3Min != null ? String(req.phase3Min) : "",
@@ -324,7 +393,7 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
     },
   });
 
-  if (!event.data.id) throw new Error("Google Calendar no devolvió un ID para el evento.");
+  if (!event.data.id) throw new Error("Google Calendar no devolvió un ID.");
   return { eventId: event.data.id, htmlLink: event.data.htmlLink ?? undefined };
 }
 
