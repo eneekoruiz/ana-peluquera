@@ -24,6 +24,7 @@
   import AdminRoute from "@/components/AdminRoute";
   import AdminToolbar from "@/components/cms/AdminToolbar";
   import CancelBooking from "./pages/CancelBooking"; // Importar arriba
+  import { SpeedInsights } from "@vercel/speed-insights/react";
 
   // Páginas públicas (ahora con CMS integrado)
   import Home from "./pages/Home";
@@ -121,6 +122,7 @@
           </LanguageProvider>
         </AuthProvider>
       </TooltipProvider>
+      <SpeedInsights />
     </QueryClientProvider>
   );
 
