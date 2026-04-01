@@ -339,8 +339,10 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
   const calendarId = getGoogleCalendarId();
   const timeZone = req.timeZone || process.env.GOOGLE_CALENDAR_TIME_ZONE || "Europe/Madrid";
 
-  const startStr = req.start.toISOString();
-  const endStr = req.end.toISOString();
+  // Cortamos los últimos caracteres (la 'Z' de UTC) para que Google respete la hora exacta 
+  // que le pasamos y la ancle a la zona horaria "Europe/Madrid" que le definimos abajo.
+  const startStr = req.start.toISOString().substring(0, 19);
+  const endStr = req.end.toISOString().substring(0, 19);
   const dateString = req.start.toISOString().split('T')[0];
 
   // 1. 📡 Descargamos configuración de Firebase
