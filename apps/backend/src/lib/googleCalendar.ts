@@ -153,9 +153,19 @@ function getCapacityForDate(date: Date, currentWorkers: Worker[]): number {
 
 function toDateTime(value?: string): Date | null {
   if (!value) return null;
+  
+  // Si la fecha viene de Google con zona horaria (ej: 2026-05-02T09:00:00+02:00)
+  // le cortamos la cola (+02:00) y le pegamos una "Z" para forzar al backend 
+  // a que hable en el mismo idioma "falso UTC" que el frontend.
+  if (value.includes('T')) {
+    const stripped = value.substring(0, 19);
+    const d = new Date(stripped + "Z");
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  
+  // Para los eventos de "Todo el día" (ej: "2026-05-02")
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 // Sweepline: Detecta solapamientos usando la capacidad
