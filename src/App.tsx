@@ -24,6 +24,7 @@
   import AdminRoute from "@/components/AdminRoute";
   import AdminToolbar from "@/components/cms/AdminToolbar";
   import CancelBooking from "./pages/CancelBooking"; // Importar arriba
+  import { Analytics } from "@vercel/analytics/react";
 
   // Páginas públicas (ahora con CMS integrado)
   import Home from "./pages/Home";
@@ -118,6 +119,7 @@
 
               <Footer />
             </BrowserRouter>
+            <Analytics />
           </LanguageProvider>
         </AuthProvider>
       </TooltipProvider>
