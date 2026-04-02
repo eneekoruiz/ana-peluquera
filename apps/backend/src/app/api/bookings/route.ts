@@ -25,9 +25,9 @@ const corsHeaders = {
 // --- HELPER: El mismo email elegante que usamos en bookingService ---
 async function sendCancellationEmail(email: string, name: string, date: string, time: string, lang: string) {
   const t = {
-    es: { subject: "Cita Cancelada", title: "Cita Cancelada", msg: `Hola ${name}, tu cita del ${date} a las ${time} ha sido cancelada.` },
-    en: { subject: "Appointment Cancelled", title: "Appointment Cancelled", msg: `Hello ${name}, your appointment on ${date} at ${time} has been cancelled.` },
-    eu: { subject: "Hitzordua Ezeztatuta", title: "Hitzordua Ezeztatuta", msg: `Kaixo ${name}, zure ${date}ko ${time}ko hitzordua ezeztatu da.` }
+    es: { title: "Cita Cancelada", msg: `Hola ${name}, te informamos que tu cita ha sido cancelada.`, help: "Si quieres reservar otra fecha, contáctanos:", call: "LLAMAR", wa: "WHATSAPP" },
+    en: { title: "Booking Cancelled", msg: `Hello ${name}, we inform you that your appointment has been cancelled.`, help: "To reschedule, please contact us:", call: "CALL", wa: "WHATSAPP" },
+    eu: { title: "Hitzordua Ezeztatuta", msg: `Kaixo ${name}, zure hitzordua ezeztatu dela jakinarazten dizugu.`, help: "Beste egun bat hartzeko, jarri gurekin harremanetan:", call: "DEITU", wa: "WHATSAPP" }
   };
   const text = t[lang as keyof typeof t] || t.es;
 
@@ -35,14 +35,51 @@ async function sendCancellationEmail(email: string, name: string, date: string, 
     await resend.emails.send({
       from: 'AG Beauty Salon <onboarding@resend.dev>',
       to: email,
-      subject: `${text.subject} - AG Beauty Salon`,
-      html: `<div style="font-family:sans-serif; padding:20px; border:1px solid #eee; border-radius:10px;">
-        <h2 style="color:#e11d48;">${text.title}</h2>
-        <p>${text.msg}</p>
-        <p style="font-size:12px; color:#999;">AG Beauty Salon - Donostia</p>
-      </div>`
+      subject: `${text.title} - AG Beauty Salon`,
+      html: `
+      <!DOCTYPE html>
+      <html>
+      <body style="margin: 0; padding: 0; background-color: #FDFDFD; font-family: sans-serif;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" style="max-width: 500px; background-color: #ffffff; border: 1px solid #eeeeee;">
+                <tr>
+                  <td align="center" style="padding: 40px 40px 10px 40px;">
+                    <h1 style="margin: 0; font-size: 22px; font-weight: 300; letter-spacing: 5px; color: #111;">A G</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 40px;">
+                    <h2 style="font-size: 20px; font-weight: 400; color: #e11d48; margin-bottom: 10px;">${text.title}</h2>
+                    <p style="font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 30px;">${text.msg}</p>
+                    
+                    <div style="background-color: #fafafa; padding: 20px; margin-bottom: 30px; border-radius: 4px;">
+                      <p style="margin: 0; font-size: 12px; color: #111;"><strong>Cita original:</strong> ${date} a las ${time}h</p>
+                    </div>
+
+                    <p style="font-size: 12px; color: #999; margin-bottom: 20px; text-align: center;">${text.help}</p>
+
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td width="50%" align="center">
+                          <a href="tel:+34943000000" style="display: block; margin: 0 5px; padding: 12px; border: 1px solid #111; color: #111; text-decoration: none; font-size: 11px; letter-spacing: 1px;">${text.call}</a>
+                        </td>
+                        <td width="50%" align="center">
+                          <a href="https://wa.me/34943000000" style="display: block; margin: 0 5px; padding: 12px; background-color: #111; color: #fff; text-decoration: none; font-size: 11px; letter-spacing: 1px;">${text.wa}</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>`
     });
-  } catch (e) { console.error("Error email auto-limpieza:", e); }
+  } catch (e) { console.error("Error email cancelación:", e); }
 }
 
 export async function OPTIONS() { return new NextResponse(null, { status: 200, headers: corsHeaders }); }
