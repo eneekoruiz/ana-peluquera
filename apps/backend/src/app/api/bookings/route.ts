@@ -20,30 +20,28 @@ export async function GET(request: Request) {
     
     const webBookings = fbSnap.docs.map(doc => doc.data());
     
-    // 🚨 Si esto falla, el catch de abajo lo atrapará y nos dirá el motivo exacto
-    const { busy } = await getBusySlots({ 
-      start: dayjs(date).startOf('day').toDate(), 
-      end: dayjs(date).endOf('day').toDate() 
-    });
+    const start = dayjs.tz(`${date}T00:00:00`, "Europe/Madrid").toDate();
+    const end = dayjs.tz(`${date}T23:59:59`, "Europe/Madrid").subtract(1, 'ms').toDate();
 
-    const googleBlocks = busy.map((slot, i) => ({
-      id: `gcal-${i}`,
-      startTime: slot.start.format('YYYY-MM-DDTHH:mm:ss'),
-      endTime: slot.end.format('YYYY-MM-DDTHH:mm:ss'),
-      status: 'confirmed',
-      isManual: true,
-      type: "block" // Añadimos esto para que tu scheduler.ts lo reconozca al 100%
-    }));
+    const { busy } = await getBusySlots({ start, end });
+
+    // 🛡️ EL PORTERO: Filtramos para que SOLO pasen los bloques del día exacto
+    const googleBlocks = busy
+      .filter(slot => slot.start.format('YYYY-MM-DD') === date)
+      .map((slot, i) => ({
+        id: `gcal-${i}`,
+        startTime: slot.start.format('YYYY-MM-DDTHH:mm:ss'),
+        endTime: slot.end.format('YYYY-MM-DDTHH:mm:ss'),
+        status: 'confirmed',
+        isManual: true,
+        type: "block",
+        duration_min: slot.end.diff(slot.start, 'minute')
+      }));
 
     return NextResponse.json([...webBookings, ...googleBlocks]);
   } catch (error: any) {
-    // 🔥 EL CHIVATO: Ahora imprimirá el error real en tu pantalla negra
     console.error("CRASH EN GET BOOKINGS:", error);
-    return NextResponse.json({ 
-      error: "Error interno del servidor", 
-      mensaje_real: error.message,
-      stack: error.stack
-    }, { status: 500 });
+    return NextResponse.json({ error: "Error interno", msg: error.message }, { status: 500 });
   }
 }
 

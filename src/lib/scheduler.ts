@@ -25,37 +25,41 @@ const isOverlap = (p1: Phase, p2: Phase) => {
 };
 
 const isEmployeeFree = (employeeId: string, requiredPhases: Phase[], dayBookings: any[]) => {
-  // Filtramos citas de este empleado OR bloqueos generales (sin empleado)
-  const employeeBookings = dayBookings.filter(b => !b.employee_id || b.employee_id === employeeId || b.type === "block");
+  const employeeBookings = dayBookings.filter(b => 
+    !b.employee_id || 
+    b.employee_id === employeeId || 
+    b.isManual === true || 
+    b.type === "block"
+  );
 
   for (const booking of employeeBookings) {
     if (booking.status === "cancelled") continue;
 
+    // Calculamos el inicio en minutos
     let bStart = timeToMinutes(booking.start_time || "");
-    if (bStart === 0 && booking.startTime) {
-       const startDate = new Date(booking.startTime);
-       bStart = startDate.getHours() * 60 + startDate.getMinutes();
+    if (bStart === 0 && (booking.startTime || booking.start_time)) {
+       const raw = booking.startTime || booking.start_time;
+       if (raw.includes('T')) {
+         const timePart = raw.split('T')[1];
+         bStart = timeToMinutes(timePart.substring(0, 5));
+       }
     }
-    if (bStart === 0 && booking.start_time !== "00:00") continue;
 
-    let bEnd = timeToMinutes(booking.end_time || "");
+    // Calculamos la duración total del bloqueo
+    let duration = Number(booking.duration_min || booking.durationMin || 0);
     
-    let bP1 = Number(booking.phase1_min || booking.phase1Min || 0);
-    let bP2 = Number(booking.phase2_min || booking.phase2Min || 0);
-    let bP3 = Number(booking.phase3_min || booking.phase3Min || 0);
-    const bTotal = Number(booking.duration_min || booking.durationMin || 0);
+    // Si no hay duración definida (bloqueos manuales), la sacamos de la diferencia entre horas
+    if (duration === 0) {
+      const bEnd = timeToMinutes(booking.end_time || "");
+      duration = bEnd > bStart ? bEnd - bStart : 30;
+    }
 
-    // Si es un bloqueo manual, calculamos la duración en base a su hora de fin
-    if (bP1 === 0 && bP2 === 0 && bP3 === 0) {
-      bP1 = bTotal > 0 ? bTotal : (bEnd > bStart ? bEnd - bStart : 30);
-    } 
+    // Definimos el bloque de ocupación (Fase 1)
+    const existingPhase1 = { start: bStart, end: bStart + duration };
 
-    const existingPhase1 = { start: bStart, end: bStart + bP1 };
-    const existingPhase3 = bP3 > 0 ? { start: bStart + bP1 + bP2, end: bStart + bP1 + bP2 + bP3 } : null;
-
+    // Comprobamos si choca con lo que el cliente quiere reservar
     for (const reqPhase of requiredPhases) {
       if (isOverlap(reqPhase, existingPhase1)) return false;
-      if (existingPhase3 && isOverlap(reqPhase, existingPhase3)) return false;
     }
   }
   return true; 
