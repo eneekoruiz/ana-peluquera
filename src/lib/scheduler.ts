@@ -25,41 +25,40 @@ const isOverlap = (p1: Phase, p2: Phase) => {
 };
 
 const isEmployeeFree = (employeeId: string, requiredPhases: Phase[], dayBookings: any[]) => {
+  // 1. Buscamos bloqueos: citas de este empleado O bloqueos manuales de Google
   const employeeBookings = dayBookings.filter(b => 
-    !b.employee_id || 
-    b.employee_id === employeeId || 
     b.isManual === true || 
-    b.type === "block"
+    b.type === "block" || 
+    b.employee_id === employeeId || 
+    !b.employee_id
   );
 
   for (const booking of employeeBookings) {
     if (booking.status === "cancelled") continue;
 
-    // Calculamos el inicio en minutos
-    let bStart = timeToMinutes(booking.start_time || "");
-    if (bStart === 0 && (booking.startTime || booking.start_time)) {
-       const raw = booking.startTime || booking.start_time;
-       if (raw.includes('T')) {
-         const timePart = raw.split('T')[1];
-         bStart = timeToMinutes(timePart.substring(0, 5));
-       }
-    }
-
-    // Calculamos la duración total del bloqueo
-    let duration = Number(booking.duration_min || booking.durationMin || 0);
+    const bStart = timeToMinutes(booking.start_time);
+    const bEnd = timeToMinutes(booking.end_time);
     
-    // Si no hay duración definida (bloqueos manuales), la sacamos de la diferencia entre horas
-    if (duration === 0) {
-      const bEnd = timeToMinutes(booking.end_time || "");
-      duration = bEnd > bStart ? bEnd - bStart : 30;
+    // Si es un bloqueo manual de Google, ocupa todo el tramo de golpe
+    // Si es una reserva normal, respetamos las fases (p1, p2, p3)
+    let occupancyEnd;
+    if (booking.isManual || booking.type === "block") {
+      occupancyEnd = bEnd;
+    } else {
+      const p1 = Number(booking.phase1_min || 0);
+      occupancyEnd = bStart + p1;
     }
 
-    // Definimos el bloque de ocupación (Fase 1)
-    const existingPhase1 = { start: bStart, end: bStart + duration };
+    const existingBlock = { start: bStart, end: occupancyEnd };
 
-    // Comprobamos si choca con lo que el cliente quiere reservar
     for (const reqPhase of requiredPhases) {
-      if (isOverlap(reqPhase, existingPhase1)) return false;
+      if (isOverlap(reqPhase, existingBlock)) return false;
+      
+      // Si el bloqueo es de Google y es de todo el día, 
+      // bloqueamos también la fase 3 si existiera
+      if ((booking.isManual || booking.type === "block") && bEnd > reqPhase.start) {
+        if (reqPhase.start < bEnd && reqPhase.end > bStart) return false;
+      }
     }
   }
   return true; 

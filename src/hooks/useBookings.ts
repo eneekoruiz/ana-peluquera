@@ -30,27 +30,18 @@ export const useBookingsByDate = (date: string) => {
   return useQuery({
     queryKey: ["bookings", date],
     queryFn: async () => {
-      // 1. LLAMAMOS AL ENDPOINT CORRECTO (/bookings)
       const response = await fetch(`${API_URL}/bookings?date=${date}`);
       if (!response.ok) throw new Error("Error al obtener disponibilidad");
       
       const data = await response.json();
       
-      // 2. EXTRACCIÓN A PRUEBA DE BALAS
-      // El backend manda strings exactos: "2026-04-07T00:00:00".
-      // Extraemos la hora sin usar 'new Date()' para evitar cambios de zona horaria del navegador.
-      return (Array.isArray(data) ? data : []).map((slot: any) => {
-        const rawStart = slot.startTime || slot.start_time || "";
-        const rawEnd = slot.endTime || slot.end_time || "";
-
-        return {
-          ...slot,
-          // Cortamos por la 'T' y cogemos los primeros 5 caracteres ("HH:mm")
-          start_time: rawStart.includes('T') ? rawStart.split('T')[1].substring(0, 5) : rawStart.substring(0, 5),
-          end_time: rawEnd.includes('T') ? rawEnd.split('T')[1].substring(0, 5) : rawEnd.substring(0, 5),
-          status: slot.status || "confirmed"
-        };
-      });
+      // Mapeamos TODO a start_time y end_time (con barra baja) 
+      // para que el scheduler no se vuelva loco
+      return (Array.isArray(data) ? data : []).map((slot: any) => ({
+        ...slot,
+        start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
+        end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
+      }));
     },
     enabled: !!date,
   });
