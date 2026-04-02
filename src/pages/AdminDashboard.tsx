@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import ScrollReveal from "@/components/ScrollReveal";
 import {
   CalendarDays, Lock, Power, AlertTriangle,
-  CalendarOff, Users, Plus, Trash2, Save, UserCog, Palmtree, X
+  CalendarOff, Users, Plus, Trash2, Save, UserCog, X, CalendarCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import AdminAppointments from "@/components/admin/AdminAppointments";
 import AdminBlocking from "@/components/admin/AdminBlocking";
 
+// --- TIPOS Y CONSTANTES ---
 type AdminTab = "appointments" | "staff" | "blocking";
 
 const tabs: { key: AdminTab; label: string; icon: React.ElementType }[] = [
@@ -90,16 +91,15 @@ const VacationManager = ({ settings, onClose }: { settings: any, onClose: () => 
   );
 };
 
-// ── COMPONENTE GESTOR PERSONAL (STAFF) ──
+// ── COMPONENTE GESTOR PERSONAL (STAFF) LIMPIO ──
 const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSettings: any }) => {
   const defaultStaff = [
-    { id: "ana_id", name: "Ana (Responsable)", skills: ["peluqueria", "masajes"], workingDays: [1, 2, 3, 4, 5, 6], priority: 1, vacations: [] },
-    { id: "refuerzo_id", name: "Refuerzo Peluquería", skills: ["peluqueria"], workingDays: [5, 6], priority: 2, vacations: [] }
+    { id: "ana_id", name: "Ana (Responsable)", skills: ["peluqueria", "masajes"], workingDays: [1, 2, 3, 4, 5, 6], priority: 1 },
+    { id: "refuerzo_id", name: "Refuerzo Peluquería", skills: ["peluqueria"], workingDays: [5, 6], priority: 2 }
   ];
 
   const [staff, setStaff] = useState<any[]>(settings?.staff || defaultStaff);
   const [isDirty, setIsDirty] = useState(false);
-  const [editingVacationsIdx, setEditingVacationsIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (settings?.staff) setStaff(settings.staff);
@@ -126,11 +126,11 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-sand-light/10 p-4 rounded-xl border border-border">
         <div>
           <h2 className="text-xl font-serif text-foreground">Equipo del Salón</h2>
-          <p className="text-sm text-muted-foreground mt-1">Días de trabajo y vacaciones personales.</p>
+          <p className="text-sm text-muted-foreground mt-1">Configura quién trabaja y qué días (Las vacaciones se gestionan en Google Calendar).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => {
-            setStaff([...staff, { id: `emp_${Date.now()}`, name: "Nuevo Empleado", skills: ["peluqueria"], workingDays: [1, 2, 3, 4, 5], priority: staff.length + 1, vacations: [] }]);
+            setStaff([...staff, { id: `emp_${Date.now()}`, name: "Nuevo Empleado", skills: ["peluqueria"], workingDays: [1, 2, 3, 4, 5], priority: staff.length + 1 }]);
             setIsDirty(true);
           }} className="gap-1.5 border-dashed"><Plus size={16} /> Añadir trabajadora</Button>
           {isDirty && <Button variant="hero" size="sm" onClick={handleSave} className="gap-1.5"><Save size={16} /> Guardar cambios</Button>}
@@ -160,7 +160,7 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
               </div>
             </div>
 
-            <div className="mb-5">
+            <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest-plus mb-2">Días Laborales:</p>
               <div className="flex gap-1.5">
                 {daysMap.map((d, i) => (
@@ -171,73 +171,52 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
                 ))}
               </div>
             </div>
-
-            <Button variant="outline" size="sm" className="w-full gap-2 text-xs" onClick={() => setEditingVacationsIdx(idx)}>
-              <Palmtree size={14} className="text-sand-dark" /> 
-              Gestionar sus Vacaciones ({emp.vacations?.length || 0})
-            </Button>
           </div>
         ))}
       </div>
-
-      {/* ── MODAL VACACIONES INDIVIDUALES ── */}
-      {editingVacationsIdx !== null && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-md rounded-xl shadow-2xl border border-border">
-            <div className="p-5 border-b flex justify-between items-center">
-              <h3 className="font-serif text-lg">Vacaciones de {staff[editingVacationsIdx].name}</h3>
-              <button onClick={() => setEditingVacationsIdx(null)}><X size={20}/></button>
-            </div>
-            <div className="p-5 space-y-4 max-h-[50vh] overflow-y-auto">
-              {(staff[editingVacationsIdx].vacations || []).map((v: any, vIdx: number) => (
-                <div key={vIdx} className="flex gap-2 items-center bg-muted/20 p-2 rounded border">
-                  <div className="grid grid-cols-2 gap-2 flex-1">
-                    <input type="date" value={v.start} onChange={(e) => {
-                      const newVac = [...staff[editingVacationsIdx].vacations];
-                      newVac[vIdx].start = e.target.value;
-                      updateStaffMember(editingVacationsIdx, { vacations: newVac });
-                    }} className="text-xs p-1 border rounded" />
-                    <input type="date" value={v.end} onChange={(e) => {
-                      const newVac = [...staff[editingVacationsIdx].vacations];
-                      newVac[vIdx].end = e.target.value;
-                      updateStaffMember(editingVacationsIdx, { vacations: newVac });
-                    }} className="text-xs p-1 border rounded" />
-                  </div>
-                  <button onClick={() => {
-                    const newVac = staff[editingVacationsIdx].vacations.filter((_:any, i:number)=>i!==vIdx);
-                    updateStaffMember(editingVacationsIdx, { vacations: newVac });
-                  }} className="text-red-500"><Trash2 size={14}/></button>
-                </div>
-              ))}
-              <Button variant="outline" size="sm" className="w-full border-dashed" onClick={() => {
-                const newVac = [...(staff[editingVacationsIdx].vacations || []), { start: "", end: "" }];
-                updateStaffMember(editingVacationsIdx, { vacations: newVac });
-              }}>+ Añadir periodo libre</Button>
-            </div>
-            <div className="p-4 bg-muted/30 border-t flex justify-end">
-              <Button variant="hero" onClick={() => setEditingVacationsIdx(null)}>Aceptar</Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
+// ── COMPONENTE PRINCIPAL (DASHBOARD) ──
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>("appointments");
   const [showVacation, setShowVacation] = useState(false);
   const { data: settings } = useAdminSettings();
   const updateSettings = useUpdateAdminSettings();
   const { logout } = useAuth();
+  
+  // Parámetros de la URL para detectar la vuelta de Google
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const googleStatus = searchParams.get("google");
+    if (googleStatus === "success") {
+      toast.success("¡Google Calendar conectado con éxito!");
+      setSearchParams({});
+    } else if (googleStatus === "error") {
+      toast.error("Hubo un problema al conectar con Google.");
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
 
   const todayStr = getLocalDateStr();
   const isTodayClosed = settings?.today_closed && settings?.today_closed_date === todayStr;
+  
+  // Tipado seguro para que TypeScript no de error
+  const hasGoogleCalendar = !!(settings as any)?.googleCalendarTokens;
+
+  // Redirección al backend para el OAuth
+  const handleConnectGoogle = () => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+    window.location.href = `${backendUrl}/api/auth/google`;
+  };
 
   return (
     <main className="pt-16 min-h-screen bg-warm-white">
       <section className="py-6 md:py-12">
         <div className="container">
+          
           <ScrollReveal>
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 border-b border-border pb-6">
               <div>
@@ -254,7 +233,8 @@ const AdminDashboard = () => {
           </ScrollReveal>
 
           <ScrollReveal delay={60}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              
               <div className={`rounded-xl p-5 border flex items-center justify-between cursor-pointer transition-all hover:shadow-md ${settings?.bookings_enabled !== false ? "bg-card border-border" : "bg-red-50 border-red-200"}`}
                 onClick={() => updateSettings.mutate({ bookings_enabled: !settings?.bookings_enabled })}>
                 <div>
@@ -280,6 +260,22 @@ const AdminDashboard = () => {
                 <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Calendario</p>
                 <p className="text-base font-serif text-foreground flex items-center gap-2"><CalendarOff size={18} className="text-sand-dark" /> Festivos y Vacaciones</p>
               </button>
+
+              <button 
+                type="button" 
+                onClick={handleConnectGoogle} 
+                className={`rounded-xl p-5 border text-left hover:shadow-md transition-all ${hasGoogleCalendar ? "bg-blue-50/50 border-blue-200" : "bg-card border-border"}`}
+              >
+                <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Sincronización</p>
+                <p className={`text-base font-serif flex items-center gap-2 ${hasGoogleCalendar ? "text-blue-700" : "text-foreground"}`}>
+                  <CalendarCheck size={18} className={hasGoogleCalendar ? "text-blue-600" : "text-muted-foreground"} /> 
+                  {hasGoogleCalendar ? "Google Conectado" : "Vincular Google"}
+                </p>
+                {!hasGoogleCalendar && (
+                  <p className="text-[10px] text-muted-foreground mt-1 truncate">Conecta para sincronizar</p>
+                )}
+              </button>
+
             </div>
           </ScrollReveal>
 
@@ -300,6 +296,7 @@ const AdminDashboard = () => {
             {activeTab === "staff"        && <AdminStaff settings={settings} updateSettings={updateSettings} />}
             {activeTab === "blocking"     && <AdminBlocking />}
           </ScrollReveal>
+          
         </div>
       </section>
     </main>

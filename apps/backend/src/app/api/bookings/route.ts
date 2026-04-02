@@ -3,7 +3,6 @@ import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
 import { createBooking, getAvailableSlots } from '@/lib/bookingService';
 import { cancelAppointment } from '@/lib/googleCalendar';
 
-// 🚀 Anti-caché estricto para sincronización en tiempo real
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -19,63 +18,58 @@ const CONTACT_INFO = {
   message: "Si tienes problemas con tu reserva, contacta con Ana por WhatsApp."
 };
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsHeaders });
+export async function OPTIONS() { return new NextResponse(null, { status: 200, headers: corsHeaders }); }
+
+// 🇪🇸 Esta función convierte el evento de Google en la hora EXACTA de España
+function formatToMadridTime(dateInput: Date | string): string {
+  const date = new Date(dateInput);
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Madrid',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  return formatter.format(date).replace(' ', 'T');
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date');
 
-  if (!date) {
-    return NextResponse.json({ error: 'La fecha es obligatoria' }, { status: 400, headers: corsHeaders });
-  }
+  if (!date) return NextResponse.json({ error: 'La fecha es obligatoria' }, { status: 400, headers: corsHeaders });
 
   try {
     const db = getFirebaseAdminApp().firestore();
-    
-    // 1. Reservas de la Web (Firebase)
     const snapshot = await db.collection('bookings')
       .where('startTime', '>=', `${date}T00:00:00`)
       .where('startTime', '<=', `${date}T23:59:59`)
       .get();
-
     const firebaseBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // 2. 🚀 Sincronización con Google Calendar (Nivel Dios: 0 Errores)
     let manualEvents: any[] = [];
     try {
       const result = await getAvailableSlots(date);
-      
-      // VALIDACIÓN BLINDADA: Comprobamos si 'result' es directamente el array (BusyInterval[]) 
-      // o si es un objeto que contiene la propiedad 'busy' por si la función cambia en el futuro.
       const busySlots = Array.isArray(result) ? result : ((result as any)?.busy || []);
 
       manualEvents = busySlots.map((slot: any, index: number) => {
-        // Limpieza de Timezone para alinear Google Calendar con el Frontend a la perfección
-        const startStr = new Date(slot.start).toISOString().substring(0, 19);
-        const endStr = new Date(slot.end).toISOString().substring(0, 19);
+        // Al aplicar la hora de Madrid forzamos a que el frontend lea "12:15" literalmente.
+        const startMadrid = formatToMadridTime(slot.start);
+        const endMadrid = formatToMadridTime(slot.end);
 
         return {
-          id: `gcal-${index}`,
-          startTime: startStr,
-          endTime: endStr,
+          id: `gcal-manual-${index}`,
+          startTime: startMadrid,
+          endTime: endMadrid,
           status: 'confirmed',
           title: 'Bloqueo Manual (Google)',
           isManual: true
         };
       });
     } catch (error) {
-      console.error("⚠️ Error silencioso leyendo Google Calendar:", error);
+      console.error("⚠️ Error leyendo Google Calendar:", error);
     }
 
-    return NextResponse.json([...firebaseBookings, ...manualEvents], { 
-      status: 200, 
-      headers: corsHeaders 
-    });
-
+    return NextResponse.json([...firebaseBookings, ...manualEvents], { status: 200, headers: corsHeaders });
   } catch (error) {
-    console.error("❌ Error CRÍTICO en GET Bookings:", error);
     return NextResponse.json({ error: 'Error al cargar la agenda', fallback: CONTACT_INFO }, { status: 500, headers: corsHeaders });
   }
 }
@@ -93,25 +87,16 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
-
   if (!id) return NextResponse.json({ error: 'Falta el ID' }, { status: 400, headers: corsHeaders });
-
   try {
     const db = getFirebaseAdminApp().firestore();
     const docRef = db.collection('bookings').doc(id);
     const docSnap = await docRef.get();
-    
     if (!docSnap.exists) return NextResponse.json({ error: 'No existe la reserva' }, { status: 404, headers: corsHeaders });
-
     const data = docSnap.data();
     if (data?.googleEventId) {
-      try {
-        await cancelAppointment(data.googleEventId);
-      } catch (e) {
-        console.warn("Evento ya borrado en Google Calendar, continuando limpieza en Firebase.");
-      }
+      try { await cancelAppointment(data.googleEventId); } catch (e) { /* Ya borrado */ }
     }
-
     await docRef.delete();
     return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
   } catch (error) {

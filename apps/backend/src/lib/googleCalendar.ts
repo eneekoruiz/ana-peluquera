@@ -151,22 +151,18 @@ function getCapacityForDate(date: Date, currentWorkers: Worker[]): number {
   return workersToday.length;
 }
 
+// 🚀 LA SOLUCIÓN AL DESFASE: Nada de recortar strings. Se parsea la hora real de Google.
 function toDateTime(value?: string): Date | null {
   if (!value) return null;
   
-  // Si es un evento de todo el día (ej. "2026-04-06")
+  // Eventos de todo el día ("2026-04-09") -> Los forzamos a medianoche UTC
   if (!value.includes('T')) {
-    const d = new Date(value);
+    const d = new Date(`${value}T00:00:00Z`);
     return Number.isNaN(d.getTime()) ? null : d;
   }
-
-  // Si es un evento con horas (ej. "2026-04-06T11:05:00+02:00")
-  // Google nos manda el offset (+02:00), pero Vercel al hacer 'new Date()' lo resta 
-  // y lo pasa a UTC, destrozando la hora.
-  // EL TRUCO: Le decimos a Vercel que la hora que nos manda Google YA ES UTC.
-  const datePart = value.substring(0, 19); // Nos quedamos con "2026-04-06T11:05:00"
-  const d = new Date(datePart + "Z");      // Le pegamos la Z para anclarlo: 11:05 UTC real.
   
+  // Eventos con hora ("2026-04-09T12:15:00+02:00"). Javascript lo lee perfectamente a nivel mundial.
+  const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -280,7 +276,9 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     const end = toDateTime((event.end as any).dateTime ?? (event.end as any).date);
     if (!start || !end) continue;
 
-    const dateKey = start.toISOString().split('T')[0]; 
+    // Calculamos a qué día pertenece el evento localmente en vez de usar UTC estricto
+    const localD = new Date(start.getTime() - start.getTimezoneOffset() * 60000);
+    const dateKey = localD.toISOString().split('T')[0]; 
     if (!intervalsByDay[dateKey]) intervalsByDay[dateKey] = [];
 
     if (!isOurAppointment(event)) {
@@ -316,8 +314,8 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       // A. ¿La peluquería está cerrada por vacaciones o botón de "cerrar hoy"?
       if (isDayClosed(dateString, settings)) {
           finalBusyIntervals.push({ 
-            start: new Date(y, m - 1, d, 0, 0, 0), 
-            end: new Date(y, m - 1, d, 23, 59, 59), 
+            start: new Date(Date.UTC(y, m - 1, d, 0, 0, 0)), 
+            end: new Date(Date.UTC(y, m - 1, d, 23, 59, 59)), 
             sourceEventId: "closed_by_admin" 
           });
           continue;
@@ -327,8 +325,8 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       const maxCapacity = getCapacityForDate(date, settings.workers);
       if (maxCapacity === 0) {
           finalBusyIntervals.push({ 
-            start: new Date(y, m - 1, d, 0, 0, 0), 
-            end: new Date(y, m - 1, d, 23, 59, 59), 
+            start: new Date(Date.UTC(y, m - 1, d, 0, 0, 0)), 
+            end: new Date(Date.UTC(y, m - 1, d, 23, 59, 59)), 
             sourceEventId: "no_workers" 
           });
           continue;
@@ -351,8 +349,6 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
   const calendarId = getGoogleCalendarId();
   const timeZone = req.timeZone || process.env.GOOGLE_CALENDAR_TIME_ZONE || "Europe/Madrid";
 
-  // Cortamos los últimos caracteres (la 'Z' de UTC) para que Google respete la hora exacta 
-  // que le pasamos y la ancle a la zona horaria "Europe/Madrid" que le definimos abajo.
   const startStr = req.start.toISOString().substring(0, 19);
   const endStr = req.end.toISOString().substring(0, 19);
   const dateString = req.start.toISOString().split('T')[0];
