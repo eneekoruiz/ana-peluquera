@@ -253,6 +253,7 @@ const Reservation = () => {
         phase1_min: service.phase1_min || 0,
         phase2_min: service.phase2_min || 0,
         phase3_min: service.phase3_min || 0,
+        lang: lang, // 👈 ¡AÑADIMOS ESTO PARA QUE EL BACKEND SEPA EL IDIOMA!
       };
 
       const docRef = await addDoc(collection(db, "bookings"), bookingPayload);
