@@ -2,93 +2,15 @@ import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import ScrollReveal from "@/components/ScrollReveal";
 import {
-  CalendarDays, Lock, Power, AlertTriangle,
-  CalendarOff, Users, Plus, Trash2, Save, UserCog, X, CalendarCheck
+  Power, AlertTriangle, Users, Plus, Trash2, Save, CalendarCheck, Smartphone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAdminSettings, useUpdateAdminSettings } from "@/hooks/useAdminSettings";
 import { useAuth } from "@/contexts/AuthContext";
-import AdminAppointments from "@/components/admin/AdminAppointments";
-import AdminBlocking from "@/components/admin/AdminBlocking";
-
-// --- TIPOS Y CONSTANTES ---
-type AdminTab = "appointments" | "staff" | "blocking";
-
-const tabs: { key: AdminTab; label: string; icon: React.ElementType }[] = [
-  { key: "appointments", label: "Citas", icon: CalendarDays },
-  { key: "staff",        label: "Personal", icon: UserCog },
-  { key: "blocking",     label: "Bloqueos", icon: Lock },
-];
 
 const getLocalDateStr = (d = new Date()) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-};
-
-// ── COMPONENTE VACACIONES GENERALES (SALÓN) ──
-const VacationManager = ({ settings, onClose }: { settings: any, onClose: () => void }) => {
-  const updateSettings = useUpdateAdminSettings();
-  const [ranges, setRanges] = useState<{start: string, end: string}[]>(settings?.vacation_ranges || []);
-
-  const handleAdd = () => {
-    if (ranges.some(r => !r.start || !r.end)) {
-      toast.error("Completa los rangos actuales primero");
-      return;
-    }
-    setRanges([...ranges, { start: "", end: "" }]);
-  };
-  
-  const handleRemove = (index: number) => setRanges(ranges.filter((_, i) => i !== index));
-  
-  const handleChange = (index: number, field: 'start'|'end', value: string) => {
-    const newRanges = [...ranges];
-    newRanges[index][field] = value;
-    if (field === 'start' && (!newRanges[index].end || newRanges[index].end < value)) {
-      newRanges[index].end = value;
-    }
-    setRanges(newRanges);
-  };
-
-  const handleSave = () => {
-    let validRanges = ranges.filter(r => r.start && r.end);
-    if (validRanges.some(r => r.start > r.end)) {
-        toast.error("Error: El inicio es posterior al fin.");
-        return;
-    }
-    updateSettings.mutate({ vacation_ranges: validRanges });
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-card w-full max-w-md rounded-xl shadow-xl border border-border overflow-hidden">
-        <div className="p-5 border-b flex justify-between items-center bg-sand-light/10">
-          <h3 className="font-serif text-lg flex items-center gap-2">
-            <CalendarOff size={18} className="text-sand-dark" /> Vacaciones Salón
-          </h3>
-          <button onClick={onClose}><X size={20}/></button>
-        </div>
-        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-          {ranges.map((range, i) => (
-            <div key={i} className="flex items-center gap-2 bg-background p-3 rounded-lg border">
-              <div className="flex-1 space-y-2 text-sm">
-                <input type="date" value={range.start} onChange={e => handleChange(i, 'start', e.target.value)} className="w-full border rounded p-1" />
-                <input type="date" min={range.start} value={range.end} onChange={e => handleChange(i, 'end', e.target.value)} className="w-full border rounded p-1" />
-              </div>
-              <button onClick={() => handleRemove(i)} className="text-red-500 p-2"><Trash2 size={16} /></button>
-            </div>
-          ))}
-          <Button variant="outline" size="sm" onClick={handleAdd} className="w-full border-dashed gap-1">
-            <Plus size={14} /> Añadir fecha
-          </Button>
-        </div>
-        <div className="p-4 border-t flex gap-3 bg-muted/30">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-          <Button variant="hero" className="flex-1" onClick={handleSave}>Guardar cambios</Button>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 // ── COMPONENTE GESTOR PERSONAL (STAFF) LIMPIO ──
@@ -125,8 +47,8 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
     <div className="space-y-6 animate-in fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-sand-light/10 p-4 rounded-xl border border-border">
         <div>
-          <h2 className="text-xl font-serif text-foreground">Equipo del Salón</h2>
-          <p className="text-sm text-muted-foreground mt-1">Configura quién trabaja y qué días (Las vacaciones se gestionan en Google Calendar).</p>
+          <h2 className="text-xl font-serif text-foreground">Equipo y Horario Base</h2>
+          <p className="text-sm text-muted-foreground mt-1">Configura los días laborales por defecto (Las vacaciones y bloqueos se gestionan desde tu móvil).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => {
@@ -180,8 +102,6 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
 
 // ── COMPONENTE PRINCIPAL (DASHBOARD) ──
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<AdminTab>("appointments");
-  const [showVacation, setShowVacation] = useState(false);
   const { data: settings } = useAdminSettings();
   const updateSettings = useUpdateAdminSettings();
   const { logout } = useAuth();
@@ -225,7 +145,7 @@ const AdminDashboard = () => {
               </div>
               <div className="flex items-center gap-3">
                 <Button variant="hero" size="sm" className="gap-2 h-10 px-4" asChild>
-                  <Link to="/portal-reservado/clientes"><Users size={16} /> CRM Clientes</Link>
+                  <Link to="/portal-reservado/clientes"><Users size={16} /> Fichas de Clientes</Link>
                 </Button>
                 <Button variant="outline" size="sm" onClick={async () => { await logout(); window.location.href = "/portal-reservado"; }}>Cerrar sesión</Button>
               </div>
@@ -233,7 +153,7 @@ const AdminDashboard = () => {
           </ScrollReveal>
 
           <ScrollReveal delay={60}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
               
               <div className={`rounded-xl p-5 border flex items-center justify-between cursor-pointer transition-all hover:shadow-md ${settings?.bookings_enabled !== false ? "bg-card border-border" : "bg-red-50 border-red-200"}`}
                 onClick={() => updateSettings.mutate({ bookings_enabled: !settings?.bookings_enabled })}>
@@ -252,13 +172,8 @@ const AdminDashboard = () => {
               }} className={`rounded-xl p-5 border text-left transition-all hover:shadow-md ${isTodayClosed ? "bg-red-50 border-red-200" : "bg-card border-border"}`}>
                 <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Apertura Diaria</p>
                 <p className={`text-base font-serif flex items-center gap-2 ${isTodayClosed ? "text-red-600" : "text-green-700"}`}>
-                  <AlertTriangle size={18} /> {isTodayClosed ? "Salón Cerrado Hoy" : "Salón Abierto Hoy"}
+                  <AlertTriangle size={18} /> {isTodayClosed ? "Cerrado por Urgencia" : "Salón Abierto Hoy"}
                 </p>
-              </button>
-
-              <button type="button" onClick={() => setShowVacation(true)} className="rounded-xl p-5 border bg-card border-border text-left hover:shadow-md transition-all">
-                <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Calendario</p>
-                <p className="text-base font-serif text-foreground flex items-center gap-2"><CalendarOff size={18} className="text-sand-dark" /> Festivos y Vacaciones</p>
               </button>
 
               <button 
@@ -276,25 +191,20 @@ const AdminDashboard = () => {
                 )}
               </button>
 
-            </div>
-          </ScrollReveal>
+              {/* TARJETA INFORMATIVA: Reemplaza a las antiguas vacaciones */}
+              <div className="rounded-xl p-5 border bg-amber-50/50 border-amber-200 text-left">
+                <p className="text-[10px] text-amber-700 uppercase mb-1.5 font-bold">Gestión de Citas</p>
+                <p className="text-sm font-sans text-amber-900 flex items-start gap-2 leading-tight">
+                  <Smartphone size={18} className="shrink-0 mt-0.5" /> 
+                  Abre Google Calendar en tu móvil para ver, crear o borrar reservas y vacaciones.
+                </p>
+              </div>
 
-          {showVacation && <VacationManager settings={settings} onClose={() => setShowVacation(false)} />}
-
-          <ScrollReveal delay={80}>
-            <div className="flex gap-2 mb-8 border-b border-border overflow-x-auto">
-              {tabs.map(({ key, label, icon: Icon }) => (
-                <button key={key} type="button" onClick={() => setActiveTab(key)} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${activeTab === key ? "border-sand-dark text-sand-dark bg-sand-light/10" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                  <Icon size={16} /> {label}
-                </button>
-              ))}
             </div>
           </ScrollReveal>
 
           <ScrollReveal delay={100} className="min-h-[400px]">
-            {activeTab === "appointments" && <AdminAppointments />}
-            {activeTab === "staff"        && <AdminStaff settings={settings} updateSettings={updateSettings} />}
-            {activeTab === "blocking"     && <AdminBlocking />}
+            <AdminStaff settings={settings} updateSettings={updateSettings} />
           </ScrollReveal>
           
         </div>
