@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
-import { createBooking, getAvailableSlots } from '@/lib/bookingService';
-import { cancelAppointment } from '@/lib/googleCalendar';
+// Solo traemos la creación de citas de bookingService, la lectura la hacemos directa
+import { createBooking } from '@/lib/bookingService'; 
+// 🚀 CRÍTICO: Importamos getBusySlots directo de la fuente para evitar dobles conversiones
+import { cancelAppointment, getBusySlots } from '@/lib/googleCalendar';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,17 +20,8 @@ const CONTACT_INFO = {
   message: "Si tienes problemas con tu reserva, contacta con Ana por WhatsApp."
 };
 
-export async function OPTIONS() { return new NextResponse(null, { status: 200, headers: corsHeaders }); }
-
-// 🇪🇸 Esta función convierte el evento de Google en la hora EXACTA de España
-function formatToMadridTime(dateInput: Date | string): string {
-  const date = new Date(dateInput);
-  const formatter = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Madrid',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
-  return formatter.format(date).replace(' ', 'T');
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
 
 export async function GET(request: Request) {
@@ -43,22 +36,25 @@ export async function GET(request: Request) {
       .where('startTime', '>=', `${date}T00:00:00`)
       .where('startTime', '<=', `${date}T23:59:59`)
       .get();
+    
     const firebaseBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     let manualEvents: any[] = [];
     try {
-      const result = await getAvailableSlots(date);
-      const busySlots = Array.isArray(result) ? result : ((result as any)?.busy || []);
+      // 🚀 MAGIA PURA: Leemos los bloqueos saltándonos cualquier intermediario.
+      // Forzamos la consulta como UTC para que Vercel no altere las horas.
+      const startDate = new Date(`${date}T00:00:00Z`);
+      const endDate = new Date(`${date}T23:59:59Z`);
+      
+      const { busy } = await getBusySlots({ start: startDate, end: endDate });
 
-      manualEvents = busySlots.map((slot: any, index: number) => {
-        // Al aplicar la hora de Madrid forzamos a que el frontend lea "12:15" literalmente.
-        const startMadrid = formatToMadridTime(slot.start);
-        const endMadrid = formatToMadridTime(slot.end);
-
+      manualEvents = busy.map((slot: any, index: number) => {
         return {
           id: `gcal-manual-${index}`,
-          startTime: startMadrid,
-          endTime: endMadrid,
+          // El truco "Fake UTC": Al hacer toISOString y cortar la cola, 
+          // extraemos la hora EXACTA del calendario ignorando si el servidor está en Londres o en China.
+          startTime: slot.start.toISOString().substring(0, 19),
+          endTime: slot.end.toISOString().substring(0, 19),
           status: 'confirmed',
           title: 'Bloqueo Manual (Google)',
           isManual: true
@@ -87,16 +83,21 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+
   if (!id) return NextResponse.json({ error: 'Falta el ID' }, { status: 400, headers: corsHeaders });
+
   try {
     const db = getFirebaseAdminApp().firestore();
     const docRef = db.collection('bookings').doc(id);
     const docSnap = await docRef.get();
+    
     if (!docSnap.exists) return NextResponse.json({ error: 'No existe la reserva' }, { status: 404, headers: corsHeaders });
+    
     const data = docSnap.data();
     if (data?.googleEventId) {
-      try { await cancelAppointment(data.googleEventId); } catch (e) { /* Ya borrado */ }
+      try { await cancelAppointment(data.googleEventId); } catch (e) { /* Ya borrado en Google */ }
     }
+
     await docRef.delete();
     return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
   } catch (error) {
