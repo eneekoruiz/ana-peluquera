@@ -16,10 +16,11 @@ export async function GET(request: Request) {
     const fbSnap = await db.collection('bookings')
       .where('startTime', '>=', `${date}T00:00:00`)
       .where('startTime', '<=', `${date}T23:59:59`)
-      .where('status', '==', 'confirmed')
       .get();
     
     const webBookings = fbSnap.docs.map(doc => doc.data());
+    
+    // 🚨 Si esto falla, el catch de abajo lo atrapará y nos dirá el motivo exacto
     const { busy } = await getBusySlots({ 
       start: dayjs(date).startOf('day').toDate(), 
       end: dayjs(date).endOf('day').toDate() 
@@ -30,11 +31,20 @@ export async function GET(request: Request) {
       startTime: slot.start.format('YYYY-MM-DDTHH:mm:ss'),
       endTime: slot.end.format('YYYY-MM-DDTHH:mm:ss'),
       status: 'confirmed',
-      isManual: true
+      isManual: true,
+      type: "block" // Añadimos esto para que tu scheduler.ts lo reconozca al 100%
     }));
 
     return NextResponse.json([...webBookings, ...googleBlocks]);
-  } catch (error) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
+  } catch (error: any) {
+    // 🔥 EL CHIVATO: Ahora imprimirá el error real en tu pantalla negra
+    console.error("CRASH EN GET BOOKINGS:", error);
+    return NextResponse.json({ 
+      error: "Error interno del servidor", 
+      mensaje_real: error.message,
+      stack: error.stack
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
