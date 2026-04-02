@@ -14,42 +14,43 @@ export interface Booking {
   client_email: string | null;
   status: 'confirmed' | 'pending' | 'cancelled';
   notes: string | null;
-  // Fases para la lógica Sandwich
   phase1_min?: number;
   phase2_min?: number;
   phase3_min?: number;
   phase2_released?: boolean;
   current_phase?: string;
+  isManual?: boolean;
 }
 
 /**
  * 📡 HOOK DE DISPONIBILIDAD (Para el formulario de reserva)
- * Consulta al servidor los huecos ocupados en Google Calendar y Firebase.
+ * Ahora llama al endpoint correcto y no sufre desfases horarios.
  */
 export const useBookingsByDate = (date: string) => {
   return useQuery({
     queryKey: ["bookings", date],
     queryFn: async () => {
-      // Llamamos al endpoint de disponibilidad real
-      const response = await fetch(`${API_URL}/admin/settings/availability?date=${date}`);
+      // 1. LLAMAMOS AL ENDPOINT CORRECTO (/bookings)
+      const response = await fetch(`${API_URL}/bookings?date=${date}`);
       if (!response.ok) throw new Error("Error al obtener disponibilidad");
       
       const data = await response.json();
       
-      // Transformamos los tramos ISO de Google a formato HH:mm para la UI
-      return (data.busy || []).map((slot: any) => ({
-        start_time: new Date(slot.start).toLocaleTimeString("es-ES", { 
-          hour: "2-digit", 
-          minute: "2-digit", 
-          hour12: false 
-        }),
-        end_time: new Date(slot.end).toLocaleTimeString("es-ES", { 
-          hour: "2-digit", 
-          minute: "2-digit", 
-          hour12: false 
-        }),
-        status: "confirmed"
-      }));
+      // 2. EXTRACCIÓN A PRUEBA DE BALAS
+      // El backend manda strings exactos: "2026-04-07T00:00:00".
+      // Extraemos la hora sin usar 'new Date()' para evitar cambios de zona horaria del navegador.
+      return (Array.isArray(data) ? data : []).map((slot: any) => {
+        const rawStart = slot.startTime || slot.start_time || "";
+        const rawEnd = slot.endTime || slot.end_time || "";
+
+        return {
+          ...slot,
+          // Cortamos por la 'T' y cogemos los primeros 5 caracteres ("HH:mm")
+          start_time: rawStart.includes('T') ? rawStart.split('T')[1].substring(0, 5) : rawStart.substring(0, 5),
+          end_time: rawEnd.includes('T') ? rawEnd.split('T')[1].substring(0, 5) : rawEnd.substring(0, 5),
+          status: slot.status || "confirmed"
+        };
+      });
     },
     enabled: !!date,
   });
@@ -57,7 +58,6 @@ export const useBookingsByDate = (date: string) => {
 
 /**
  * 👩‍💻 HOOK DE ADMINISTRACIÓN (Para el panel de Ana)
- * Obtiene las reservas detalladas con nombres y teléfonos.
  */
 export const useAdminBookings = (date: string) => {
   return useQuery({
@@ -73,7 +73,6 @@ export const useAdminBookings = (date: string) => {
 
 /**
  * 🚀 HOOK DE CREACIÓN
- * Orquesta Firebase + Google Calendar + Email.
  */
 export const useCreateBooking = () => {
   const qc = useQueryClient();
@@ -101,8 +100,7 @@ export const useCreateBooking = () => {
 };
 
 /**
- * 🛠️ HOOK DE ACTUALIZACIÓN (Para Ana)
- * Permite confirmar, cancelar o liberar el hueco del sándwich.
+ * 🛠️ HOOK DE ACTUALIZACIÓN
  */
 export const useUpdateBooking = () => {
   const qc = useQueryClient();
