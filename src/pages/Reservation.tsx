@@ -14,10 +14,6 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { es, enGB, eu } from "date-fns/locale";
 
-// 🔥 Firebase
-import { db } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore"; // Quitamos query, where y getDocs de aquí porque usaremos la API
-
 // 🔥 CMS y Cerebro
 import EditableText from "@/components/cms/EditableText";
 import { useServicesPageContent, useUpdateServicesPageContent } from "@/hooks/useServices";
@@ -122,10 +118,9 @@ const Reservation = () => {
     if (selectedDate && settings && isDateDisabled(selectedDate)) {
       setSelectedDate(undefined);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
-  // 🚀 EL CAMBIO MAGISTRAL 1: Llamar a la API en lugar de solo a Firebase
+  // Carga de disponibilidad desde nuestra API
   useEffect(() => {
     if (!dateStr) {
       setDayBookings([]);
@@ -138,8 +133,6 @@ const Reservation = () => {
         if (!response.ok) throw new Error("Fallo en la red");
         
         const data = await response.json();
-        
-        // Formateamos las horas para que scheduler.ts las entienda perfecto
         const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => ({
           ...slot,
           start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
@@ -156,7 +149,7 @@ const Reservation = () => {
 
   const currentStaff = (settings as any)?.staff || defaultStaff;
 
-  const { occupiedSlots, slotAssignments } = useMemo(() => {
+  const { occupiedSlots } = useMemo(() => {
     if (!service || !selectedDate) {
       return { occupiedSlots: new Set<string>(), slotAssignments: {} };
     }
@@ -200,80 +193,63 @@ const Reservation = () => {
     return false;
   };
 
+  // 🚀 AQUÍ ESTÁ LA MAGIA ARREGLADA
   const handleSubmit = async () => {
     if (!service || !selectedDate || !selectedTime) return;
     setIsSubmitting(true);
     
     try {
       const selectedDateStr = getLocalDateStr(selectedDate);
-
-      // 🚀 EL CAMBIO MAGISTRAL 2: La comprobación de último segundo también mira Google
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-      const response = await fetch(`${API_URL}/bookings?date=${selectedDateStr}`);
-      const freshData = await response.json();
-      const freshBookings = (Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
-        ...slot,
-        start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
-        end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
-      }));
-
-      const now = new Date();
-      const currentMins = now.getHours() * 60 + now.getMinutes();
-
-      const { occupied, assignments } = calculateAvailability(
-        ALL_SLOTS, service, freshBookings, currentStaff, selectedDate, selectedDateStr === todayStr, currentMins
-      );
-
-      if (occupied.has(selectedTime)) {
-        toast.error("¡Ese horario acaba de ser reservado por otra persona!", {
-          description: "Por favor, selecciona otra hora disponible.",
-        });
-        setDayBookings(freshBookings); 
-        setStep(3); 
-        setIsSubmitting(false);
-        return; 
-      }
-
       const startMin = timeToMinutes(selectedTime);
       const duration = service.duration_min || service.durationMin || 0;
       const endTimeStr = minutesToTime(startMin + duration);
 
+      // Preparamos los datos tal y como la API los exige
       const bookingPayload = {
         client_name: name.trim(),
         client_email: email.trim() || "eruiz084@ikasle.ehu.eus", 
         client_phone: phone.trim(),
         service_id: service.id,
-        employee_id: assignments[selectedTime] || "ana_id",
         date: selectedDateStr,
         start_time: selectedTime, 
         end_time: endTimeStr, 
-        status: "pending",
-        created_at: new Date().toISOString(),
-        duration_min: duration,
-        phase1_min: service.phase1_min || 0,
-        phase2_min: service.phase2_min || 0,
-        phase3_min: service.phase3_min || 0,
-        lang: lang, // 👈 ¡AÑADIMOS ESTO PARA QUE EL BACKEND SEPA EL IDIOMA!
+        lang: lang,
       };
 
-      const docRef = await addDoc(collection(db, "bookings"), bookingPayload);
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+      
+      // Llamamos A LA API, no a Firebase directamente
+      const response = await fetch(`${API_URL}/bookings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingPayload)
+      });
 
-      try {
-        await fetch(`${API_URL}/bookings/after-create`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: docRef.id,
-            service_name: getServiceName(service),
-            ...bookingPayload
-          })
+      const responseData = await response.json();
+
+      // Si la API detecta que Ana bloqueó la hora, nos devuelve un error
+      if (!response.ok) {
+        toast.error("Horario no disponible", {
+          description: responseData.error || "Ese horario acaba de ser ocupado. Elige otro."
         });
-      } catch (e) {
-        console.warn("La cita se guardó correctamente pero el backend de emails no respondió.", e);
+        
+        // Volvemos al paso 3 y recargamos las horas
+        setStep(3);
+        const refresh = await fetch(`${API_URL}/bookings?date=${selectedDateStr}`);
+        const freshData = await refresh.json();
+        setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
+          ...slot,
+          start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
+          end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
+        })));
+        setIsSubmitting(false);
+        return; 
       }
 
+      // Si todo ha ido bien
       toast.success("¡Cita reservada con éxito!", { description: "Te esperamos en el salón." });
       setSubmitted(true);
+
     } catch (error: any) {
       console.error("Error al hacer la reserva:", error);
       toast.error("Error al reservar", { description: "Hubo un problema de conexión. Inténtalo de nuevo." });
@@ -283,7 +259,6 @@ const Reservation = () => {
   };
 
   const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
-  const upcomingVacations = settings?.vacation_ranges?.filter((v: any) => v.end >= todayStr) || [];
 
   if (bookingsDisabled) {
     return (
@@ -508,15 +483,6 @@ const Reservation = () => {
                   langLabel={langLabel}
                 />
               </div>
-              
-              {upcomingVacations.length > 0 && (
-                <div className="mb-6 p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 text-xs text-center mx-auto">
-                  <p className="font-semibold mb-1">✈️ Fechas cerradas por vacaciones:</p>
-                  {upcomingVacations.map((v: any, i: number) => (
-                    <p key={i}>Del {v.start.split('-').reverse().join('/')} al {v.end.split('-').reverse().join('/')}</p>
-                  ))}
-                </div>
-              )}
 
               <div className="flex justify-center mb-6">
                 <Calendar
