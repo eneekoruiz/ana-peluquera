@@ -11,7 +11,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const TZ = "Europe/Madrid";
-// Inicializamos Resend con tu API Key de Vercel
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +25,6 @@ const corsHeaders = {
 // --- ✉️ HELPER: Email de Cancelación ---
 async function sendCancellationEmail(email: string, name: string, date: string, time: string) {
   try {
-    // IMPORTANTE: 'from' debe ser un dominio verificado en Resend (o el de pruebas onboarding@resend.dev si aún estás testeando)
     await resend.emails.send({
       from: 'AG Beauty Salon <onboarding@resend.dev>', 
       to: email,
@@ -42,7 +40,6 @@ async function sendCancellationEmail(email: string, name: string, date: string, 
         </div>
       `
     });
-    console.log(`✅ Email de cancelación enviado a: ${email}`);
   } catch (error) {
     console.error("❌ Error enviando email de cancelación:", error);
   }
@@ -70,27 +67,8 @@ export async function GET(request: Request) {
     const end = dayjs.tz(`${date}T23:59:59`, TZ).subtract(1, 'ms').toDate();
     const { busy } = await getBusySlots({ start, end });
 
-    // --- 🧹 LÓGICA DE AUTO-LIMPIEZA (Google -> Base de Datos) ---
-    const googleEventIds = new Set(busy.map(b => b.sourceEventId).filter(Boolean));
-    const cleanWebBookings = [];
-
-    for (const booking of firebaseBookings) {
-      // Si la reserva tiene un ID de Google pero YA NO ESTÁ en Google...
-      if (booking.googleEventId && !googleEventIds.has(booking.googleEventId)) {
-        console.log(`🗑️ Detectada cita borrada en móvil: ${booking.id}. Limpiando y notificando...`);
-        
-        // Enviamos email al cliente ANTES de borrar la base de datos
-        if (booking.client_email) {
-          await sendCancellationEmail(booking.client_email, booking.client_name, booking.date, booking.start_time);
-        }
-
-        // Borramos de Firebase
-        await db.collection('bookings').doc(booking.id).delete();
-      } else {
-        cleanWebBookings.push(booking);
-      }
-    }
-    // ------------------------------------------------------------
+    // 🛑 AUTO-LIMPIEZA ELIMINADA 🛑
+    // Ya no borramos cosas automáticamente para evitar el error que acabas de sufrir.
 
     // 3. Formateamos los bloqueos manuales de Google
     const googleBlocks = busy
@@ -105,7 +83,7 @@ export async function GET(request: Request) {
         duration_min: slot.end.diff(slot.start, 'minute')
       }));
 
-    return NextResponse.json([...cleanWebBookings, ...googleBlocks], { status: 200, headers: corsHeaders });
+    return NextResponse.json([...firebaseBookings, ...googleBlocks], { status: 200, headers: corsHeaders });
 
   } catch (error: any) {
     console.error("CRASH EN GET BOOKINGS:", error);
@@ -136,7 +114,7 @@ export async function DELETE(request: Request) {
     if (!docSnap.exists) return NextResponse.json({ error: 'No existe' }, { status: 404, headers: corsHeaders });
     const data = docSnap.data() as any;
     
-    // 1. Notificar al cliente (Borrado manual desde la web)
+    // 1. Notificar al cliente por email
     if (data.client_email) {
       await sendCancellationEmail(data.client_email, data.client_name, data.date, data.start_time);
     }
