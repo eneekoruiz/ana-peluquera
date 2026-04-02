@@ -5,46 +5,76 @@ import { db } from "./firebaseAdmin";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 
+// Activamos los plugins estrictamente necesarios
 dayjs.extend(utc);
 dayjs.extend(timezone);
-dayjs.extend(isSameOrBefore);
 
 const TZ = "Europe/Madrid"; 
 const SYSTEM_MARKER = "ag-beauty-salon";
 
 export interface CalendarDateRange { start: Date | string; end: Date | string; }
 export interface BusyInterval { start: dayjs.Dayjs; end: dayjs.Dayjs; sourceEventId?: string; }
-export interface CreateAppointmentRequest { start: Date | string; end: Date | string; serviceId: string; bookingId: string; notes?: string; timeZone?: string; phase1Min?: number; phase2Min?: number; phase3Min?: number; }
+export interface CreateAppointmentRequest { 
+  start: Date | string; 
+  end: Date | string; 
+  serviceId: string; 
+  bookingId: string; 
+  notes?: string; 
+  timeZone?: string; 
+  phase1Min?: number; 
+  phase2Min?: number; 
+  phase3Min?: number; 
+}
+export interface Worker { id: string; name: string; daysOfWeek: number[]; skills: string[]; }
+export interface VacationRange { start: string; end: string; }
+export interface AdminSettings { workers: Worker[]; bookingsEnabled: boolean; todayClosed: boolean; todayClosedDate: string | null; vacationRanges: VacationRange[]; }
 
 let calendarClient: ReturnType<typeof google.calendar> | null = null;
 let jwtClient: any | null = null;
 
-function getGoogleAuthClient() {
+async function getAdminSettings(): Promise<AdminSettings> {
+  const defaultSettings: AdminSettings = { workers: [{ id: "ana_id", name: "Ana (Responsable)", daysOfWeek: [1, 2, 3, 4, 5, 6], skills: ["peluqueria", "masajes"] }], bookingsEnabled: true, todayClosed: false, todayClosedDate: null, vacationRanges: [] };
+  try {
+    const docRef = await db.collection("admin").doc("settings").get();
+    if (!docRef.exists) return defaultSettings;
+    const data = docRef.data() || {};
+    // Mapeamos el 'staff' de Firestore a 'workers' en TypeScript
+    const workers = (data.staff || []).map((w: any) => ({ id: w.id, name: w.name || "Sin Nombre", daysOfWeek: w.workingDays || [], skills: w.skills || [] }));
+    return { workers: workers.length > 0 ? workers : defaultSettings.workers, bookingsEnabled: data.bookings_enabled !== false, todayClosed: !!data.today_closed, todayClosedDate: data.today_closed_date || null, vacationRanges: data.vacation_ranges || [] };
+  } catch (error) { return defaultSettings; }
+}
+
+function getGoogleCalendarId(): string { return process.env.GOOGLE_CALENDAR_ID || "primary"; }
+
+function getGoogleAuthClient(): any {
   if (jwtClient) return jwtClient;
   const jsonPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!jsonPath) throw new Error("Faltan credenciales de Google.");
-  let creds = jsonPath.trim().startsWith('{') ? JSON.parse(jsonPath) : JSON.parse(readFileSync(path.resolve(process.cwd(), jsonPath), "utf8"));
-  jwtClient = new google.auth.GoogleAuth({ credentials: { client_email: creds.client_email, private_key: creds.private_key }, scopes: ["https://www.googleapis.com/auth/calendar"] });
-  return jwtClient;
+  try {
+      let creds = jsonPath.trim().startsWith('{') ? JSON.parse(jsonPath) : JSON.parse(readFileSync(path.resolve(process.cwd(), jsonPath), "utf8"));
+      jwtClient = new google.auth.GoogleAuth({ credentials: { client_email: creds.client_email, private_key: creds.private_key }, scopes: ["https://www.googleapis.com/auth/calendar"] });
+      return jwtClient;
+  } catch (error) { throw new Error("Error leyendo JSON de Google."); }
 }
 
-function getCalendar() {
+function getCalendar(): ReturnType<typeof google.calendar> {
   if (calendarClient) return calendarClient;
   calendarClient = google.calendar({ version: "v3", auth: getGoogleAuthClient() });
   return calendarClient;
 }
 
+// 🚀 LECTOR INTELIGENTE DE FECHAS
 function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end: dayjs.Dayjs } | null {
   if (!startObj && !endObj) return null;
+  // Si es un evento de TODO EL DÍA (o de varios días enteros)
   if (startObj?.date) {
-    return {
-      start: dayjs.tz(startObj.date, TZ).startOf('day'),
-      end: dayjs.tz(endObj.date, TZ).subtract(1, 'second') 
-    };
+    const startD = dayjs.tz(startObj.date, TZ).startOf('day');
+    const endD = endObj?.date ? dayjs.tz(endObj.date, TZ).subtract(1, 'second') : startD.endOf('day');
+    return { start: startD, end: endD };
   }
-  if (startObj?.dateTime) {
+  // Si es un evento normal con horas
+  if (startObj?.dateTime && endObj?.dateTime) {
     return { start: dayjs(startObj.dateTime).tz(TZ), end: dayjs(endObj.dateTime).tz(TZ) };
   }
   return null;
@@ -85,12 +115,22 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
 export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[] }> {
   const calendar = getCalendar();
   const settingsDoc = await db.collection("admin").doc("settings").get();
-  const settings = settingsDoc.data() || {};
-  const intervalsByDay: Record<string, BusyInterval[]> = {};
+  const settingsData = settingsDoc.data() || {};
+  
+  // Transformamos a la interfaz estricta para evitar errores de TypeScript
+  const settings: AdminSettings = {
+    workers: (settingsData.staff || []).map((w: any) => ({ id: w.id, name: w.name, daysOfWeek: w.workingDays || [], skills: w.skills || [] })),
+    bookingsEnabled: settingsData.bookings_enabled !== false,
+    todayClosed: !!settingsData.today_closed,
+    todayClosedDate: settingsData.today_closed_date || null,
+    vacationRanges: settingsData.vacation_ranges || []
+  };
 
+  const intervalsByDay: Record<string, BusyInterval[]> = {};
   let curr = dayjs(dateRange.start).tz(TZ).startOf('day');
   const limit = dayjs(dateRange.end).tz(TZ).endOf('day');
-  while (curr.isSameOrBefore(limit)) {
+  
+  while (curr.valueOf() <= limit.valueOf()) {
     intervalsByDay[curr.format('YYYY-MM-DD')] = [];
     curr = curr.add(1, 'day');
   }
@@ -105,22 +145,34 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   for (const event of res.data.items ?? []) {
     const parsed = parseGoogleEvent(event.start, event.end);
     if (!parsed) continue;
-    const dateKey = parsed.start.format('YYYY-MM-DD');
-    if (!intervalsByDay[dateKey]) continue;
 
     const priv = event?.extendedProperties?.private ?? {};
-    if (priv.system === SYSTEM_MARKER && priv.phase1Min && priv.phase3Min) {
-        intervalsByDay[dateKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'm') });
-        intervalsByDay[dateKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'm'), end: parsed.end });
-    } else {
-        intervalsByDay[dateKey].push({ start: parsed.start, end: parsed.end });
+    const isOurAppt = priv.system === SYSTEM_MARKER;
+
+    // 🚀 LÓGICA MULTI-DÍA: Si Ana pone vacaciones del lunes al jueves, bloqueamos todos esos días
+    let eventCurr = parsed.start.clone().startOf('day');
+    const eventEnd = parsed.end.clone().endOf('day');
+
+    while (eventCurr.valueOf() <= eventEnd.valueOf()) {
+      const dKey = eventCurr.format('YYYY-MM-DD');
+      if (intervalsByDay[dKey]) {
+        if (isOurAppt && priv.phase1Min && priv.phase3Min) {
+            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute') });
+            intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end });
+        } else {
+            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.end });
+        }
+      }
+      eventCurr = eventCurr.add(1, 'day');
     }
   }
 
   const finalBusy: BusyInterval[] = [];
   for (const [dateStr, intervals] of Object.entries(intervalsByDay)) {
     const day = dayjs.tz(dateStr, TZ);
-    const workers = (settings.staff || []).filter((w: any) => w.workingDays?.includes(day.day())).length;
+    // FIX: Ahora leemos de settings.workers (que es TypeScript safe)
+    const workers = settings.workers.filter((w) => w.daysOfWeek.includes(day.day())).length;
+    
     if (workers === 0) {
       finalBusy.push({ start: day.startOf('day'), end: day.endOf('day') });
     } else {
@@ -130,7 +182,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   return { busy: finalBusy };
 }
 
-export async function createAppointment(req: CreateAppointmentRequest) {
+export async function createAppointment(req: CreateAppointmentRequest & { customerName?: string, customerPhone?: string }) {
   const calendar = getCalendar();
   const startDayjs = dayjs(req.start).tz(TZ);
   const endDayjs = dayjs(req.end).tz(TZ);
@@ -138,10 +190,10 @@ export async function createAppointment(req: CreateAppointmentRequest) {
   const event = await calendar.events.insert({
     calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
     requestBody: {
-      summary: req.serviceId.toUpperCase(),
-      description: req.notes,
-      start: { dateTime: startDayjs.toISOString(), timeZone: TZ },
-      end: { dateTime: endDayjs.toISOString(), timeZone: TZ },
+      summary: `[WEB] ${req.serviceId.toUpperCase()} - ${req.customerName || 'Cita'}`,
+      description: req.notes || "",
+      start: { dateTime: startDayjs.format(), timeZone: TZ },
+      end: { dateTime: endDayjs.format(), timeZone: TZ },
       extendedProperties: { private: { 
         system: SYSTEM_MARKER, 
         bookingId: req.bookingId,
