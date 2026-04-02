@@ -16,7 +16,7 @@ import { es, enGB, eu } from "date-fns/locale";
 
 // 🔥 Firebase
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore"; // Quitamos query, where y getDocs de aquí porque usaremos la API
 
 // 🔥 CMS y Cerebro
 import EditableText from "@/components/cms/EditableText";
@@ -97,9 +97,8 @@ const Reservation = () => {
   
   const isEmergencyClosedToday = settings?.today_closed && settings?.today_closed_date === todayStr;
 
-  // 🔥 CORRECCIÓN AQUÍ: Blindado contra undefined
   const isDateDisabled = (date?: Date) => {
-    if (!date) return true; // Si no hay fecha, no deshabilitamos nada (evita el error)
+    if (!date) return true; 
   
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -126,6 +125,7 @@ const Reservation = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
+  // 🚀 EL CAMBIO MAGISTRAL 1: Llamar a la API en lugar de solo a Firebase
   useEffect(() => {
     if (!dateStr) {
       setDayBookings([]);
@@ -133,12 +133,22 @@ const Reservation = () => {
     }
     const fetchBookings = async () => {
       try {
-        const q = query(collection(db, "bookings"), where("date", "==", dateStr));
-        const snapshot = await getDocs(q);
-        const bookingsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDayBookings(bookingsData);
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+        const response = await fetch(`${API_URL}/bookings?date=${dateStr}`);
+        if (!response.ok) throw new Error("Fallo en la red");
+        
+        const data = await response.json();
+        
+        // Formateamos las horas para que scheduler.ts las entienda perfecto
+        const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => ({
+          ...slot,
+          start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
+          end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
+        }));
+
+        setDayBookings(formattedBookings);
       } catch (error) {
-        console.error("Error cargando disponibilidad de Firebase:", error);
+        console.error("Error cargando disponibilidad global:", error);
       }
     };
     fetchBookings();
@@ -147,7 +157,6 @@ const Reservation = () => {
   const currentStaff = (settings as any)?.staff || defaultStaff;
 
   const { occupiedSlots, slotAssignments } = useMemo(() => {
-    // 🔥 CORRECCIÓN AQUÍ: Separadas las comprobaciones para no evaluar undefined
     if (!service || !selectedDate) {
       return { occupiedSlots: new Set<string>(), slotAssignments: {} };
     }
@@ -198,9 +207,15 @@ const Reservation = () => {
     try {
       const selectedDateStr = getLocalDateStr(selectedDate);
 
-      const q = query(collection(db, "bookings"), where("date", "==", selectedDateStr));
-      const snap = await getDocs(q);
-      const freshBookings = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // 🚀 EL CAMBIO MAGISTRAL 2: La comprobación de último segundo también mira Google
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+      const response = await fetch(`${API_URL}/bookings?date=${selectedDateStr}`);
+      const freshData = await response.json();
+      const freshBookings = (Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
+        ...slot,
+        start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
+        end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
+      }));
 
       const now = new Date();
       const currentMins = now.getHours() * 60 + now.getMinutes();
@@ -243,8 +258,6 @@ const Reservation = () => {
       const docRef = await addDoc(collection(db, "bookings"), bookingPayload);
 
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-        
         await fetch(`${API_URL}/bookings/after-create`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
