@@ -170,7 +170,8 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
             intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true });
             intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true });
         } else {
-            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.end, isAppointment: isAppointment, sourceEventId: event.id });
+            // 🔥 EL FIX PARA QUE VERCEL COMPILE ESTÁ AQUÍ (añadido || undefined)
+            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.end, isAppointment: isAppointment, sourceEventId: event.id || undefined });
         }
       }
       eventCurr = eventCurr.add(1, 'day');
