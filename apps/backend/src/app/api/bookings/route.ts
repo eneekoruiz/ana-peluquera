@@ -22,7 +22,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// --- HELPER: El mismo email elegante que usamos en bookingService ---
 async function sendCancellationEmail(email: string, name: string, date: string, time: string, lang: string) {
   const t = {
     es: { title: "Cita Cancelada", msg: `Hola ${name}, te informamos que tu cita ha sido cancelada.`, help: "Si quieres reservar otra fecha, contáctanos:", call: "LLAMAR", wa: "WHATSAPP" },
@@ -96,20 +95,20 @@ export async function GET(request: Request) {
 
     const start = dayjs.tz(`${date}T00:00:00`, TZ).toDate();
     const end = dayjs.tz(`${date}T23:59:59`, TZ).subtract(1, 'ms').toDate();
-    const { busy } = await getBusySlots({ start, end });
+    
+    // 🚀 OBTENEMOS LOS BLOQUES (busy) Y LA LISTA PURA DE IDs (rawEventIds)
+    const { busy, rawEventIds } = await getBusySlots({ start, end });
 
-    // IDs que Google dice que están OCUPADOS actualmente
-    const googleEventIds = new Set(busy.map(b => b.sourceEventId).filter(Boolean));
+    // El set ahora se construye con la lista PURA, intocable
+    const googleEventIds = new Set(rawEventIds);
     const cleanWebBookings = [];
 
     for (const booking of firebaseBookings) {
-      // 🕵️ REGRESA EL CONSERJE CON SEGURIDAD (Regla de los 10 minutos)
       const minutesSinceCreation = dayjs().diff(dayjs(booking.createdAt || booking.created_at), 'minute');
-      
       const existsInGoogle = booking.googleEventId && googleEventIds.has(booking.googleEventId);
 
       if (booking.googleEventId && !existsInGoogle && minutesSinceCreation > 10) {
-        // SI NO ESTÁ EN GOOGLE Y LLEVA MÁS DE 10 MINUTOS EN FIREBASE -> Ana la ha borrado.
+        // SI NO ESTÁ EN LA LISTA PURA Y LLEVA MÁS DE 10 MINUTOS -> Se borra
         console.log(`🧹 Auto-limpieza activa: Borrando ${booking.id} y enviando email...`);
         
         if (booking.client_email) {
@@ -130,7 +129,7 @@ export async function GET(request: Request) {
     const googleBlocks = busy
       .filter(slot => slot.start.format('YYYY-MM-DD') === date)
       .map((slot, i) => ({
-        id: slot.sourceEventId || `gcal-${i}`,
+        id: `gcal-${i}`,
         startTime: slot.start.format('YYYY-MM-DDTHH:mm:ss'),
         endTime: slot.end.format('YYYY-MM-DDTHH:mm:ss'),
         isManual: true,
@@ -144,7 +143,6 @@ export async function GET(request: Request) {
   }
 }
 
-// ... POST y DELETE se mantienen igual que en tu versión anterior
 export async function POST(request: Request) {
   try {
     const body = await request.json();

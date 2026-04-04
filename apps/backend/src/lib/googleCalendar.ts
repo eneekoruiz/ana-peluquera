@@ -39,7 +39,6 @@ async function getAdminSettings(): Promise<AdminSettings> {
     const docRef = await db.collection("admin").doc("settings").get();
     if (!docRef.exists) return defaultSettings;
     const data = docRef.data() || {};
-    // Mapeamos el 'staff' de Firestore a 'workers' en TypeScript
     const workers = (data.staff || []).map((w: any) => ({ id: w.id, name: w.name || "Sin Nombre", daysOfWeek: w.workingDays || [], skills: w.skills || [] }));
     return { workers: workers.length > 0 ? workers : defaultSettings.workers, bookingsEnabled: data.bookings_enabled !== false, todayClosed: !!data.today_closed, todayClosedDate: data.today_closed_date || null, vacationRanges: data.vacation_ranges || [] };
   } catch (error) { return defaultSettings; }
@@ -64,16 +63,13 @@ function getCalendar(): ReturnType<typeof google.calendar> {
   return calendarClient;
 }
 
-// 🚀 LECTOR INTELIGENTE DE FECHAS
 function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end: dayjs.Dayjs } | null {
   if (!startObj && !endObj) return null;
-  // Si es un evento de TODO EL DÍA (o de varios días enteros)
   if (startObj?.date) {
     const startD = dayjs.tz(startObj.date, TZ).startOf('day');
     const endD = endObj?.date ? dayjs.tz(endObj.date, TZ).subtract(1, 'second') : startD.endOf('day');
     return { start: startD, end: endD };
   }
-  // Si es un evento normal con horas
   if (startObj?.dateTime && endObj?.dateTime) {
     return { start: dayjs(startObj.dateTime).tz(TZ), end: dayjs(endObj.dateTime).tz(TZ) };
   }
@@ -112,12 +108,12 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
     merged.push(current); return merged;
 }
 
-export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[] }> {
+// 🚀 AHORA DEVOLVEMOS TAMBIÉN "rawEventIds" PARA EL CONSERJE
+export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[], rawEventIds: string[] }> {
   const calendar = getCalendar();
   const settingsDoc = await db.collection("admin").doc("settings").get();
   const settingsData = settingsDoc.data() || {};
   
-  // Transformamos a la interfaz estricta para evitar errores de TypeScript
   const settings: AdminSettings = {
     workers: (settingsData.staff || []).map((w: any) => ({ id: w.id, name: w.name, daysOfWeek: w.workingDays || [], skills: w.skills || [] })),
     bookingsEnabled: settingsData.bookings_enabled !== false,
@@ -142,14 +138,17 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     singleEvents: true,
   });
 
+  const rawEventIds: string[] = []; // 👈 GUARDAMOS LOS IDs REALES
+
   for (const event of res.data.items ?? []) {
+    if (event.id) rawEventIds.push(event.id); // 👈 LOS REGISTRAMOS TODOS
+
     const parsed = parseGoogleEvent(event.start, event.end);
     if (!parsed) continue;
 
     const priv = event?.extendedProperties?.private ?? {};
     const isOurAppt = priv.system === SYSTEM_MARKER;
 
-    // 🚀 LÓGICA MULTI-DÍA: Si Ana pone vacaciones del lunes al jueves, bloqueamos todos esos días
     let eventCurr = parsed.start.clone().startOf('day');
     const eventEnd = parsed.end.clone().endOf('day');
 
@@ -170,7 +169,6 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   const finalBusy: BusyInterval[] = [];
   for (const [dateStr, intervals] of Object.entries(intervalsByDay)) {
     const day = dayjs.tz(dateStr, TZ);
-    // FIX: Ahora leemos de settings.workers (que es TypeScript safe)
     const workers = settings.workers.filter((w) => w.daysOfWeek.includes(day.day())).length;
     
     if (workers === 0) {
@@ -179,7 +177,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       finalBusy.push(...getOverlappingIntervals(intervals, workers));
     }
   }
-  return { busy: finalBusy };
+  return { busy: finalBusy, rawEventIds }; // 👈 DEVOLVEMOS LA LISTA PURA
 }
 
 export async function createAppointment(req: CreateAppointmentRequest & { customerName?: string, customerPhone?: string }) {
