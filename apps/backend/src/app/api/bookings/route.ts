@@ -96,10 +96,8 @@ export async function GET(request: Request) {
     const start = dayjs.tz(`${date}T00:00:00`, TZ).toDate();
     const end = dayjs.tz(`${date}T23:59:59`, TZ).subtract(1, 'ms').toDate();
     
-    // 🚀 OBTENEMOS LOS BLOQUES (busy) Y LA LISTA PURA DE IDs (rawEventIds)
     const { busy, rawEventIds } = await getBusySlots({ start, end });
 
-    // El set ahora se construye con la lista PURA, intocable
     const googleEventIds = new Set(rawEventIds);
     const cleanWebBookings = [];
 
@@ -108,7 +106,6 @@ export async function GET(request: Request) {
       const existsInGoogle = booking.googleEventId && googleEventIds.has(booking.googleEventId);
 
       if (booking.googleEventId && !existsInGoogle && minutesSinceCreation > 10) {
-        // SI NO ESTÁ EN LA LISTA PURA Y LLEVA MÁS DE 10 MINUTOS -> Se borra
         console.log(`🧹 Auto-limpieza activa: Borrando ${booking.id} y enviando email...`);
         
         if (booking.client_email) {
@@ -133,6 +130,7 @@ export async function GET(request: Request) {
         startTime: slot.start.format('YYYY-MM-DDTHH:mm:ss'),
         endTime: slot.end.format('YYYY-MM-DDTHH:mm:ss'),
         isManual: true,
+        isAppointment: slot.isAppointment || false,
         type: "block",
         duration_min: slot.end.diff(slot.start, 'minute')
       }));

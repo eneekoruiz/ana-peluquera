@@ -3,10 +3,10 @@
 export interface Employee {
   id: string;
   name: string;
-  skills: string[]; // ["peluqueria", "masajes"]
-  workingDays: number[]; // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
-  priority: number; // 1 = Ana (Preferente), 2 = Refuerzo
-  vacations?: { start: string; end: string }[]; // 🔥 NUEVO: Vacaciones individuales
+  skills: string[];
+  workingDays: number[];
+  priority: number;
+  vacations?: { start: string; end: string }[];
 }
 
 export interface Phase {
@@ -24,47 +24,44 @@ const isOverlap = (p1: Phase, p2: Phase) => {
   return p1.start < p2.end && p1.end > p2.start;
 };
 
-const isEmployeeFree = (employeeId: string, requiredPhases: Phase[], dayBookings: any[]) => {
-  // 1. Buscamos bloqueos: citas de este empleado O bloqueos manuales de Google
+const isEmployeeFree = (employeeId: string, requiredPhases: {p1: Phase, p2: Phase | null, p3: Phase | null}, dayBookings: any[]) => {
+  // Filtramos los eventos que afectan a este empleado o bloqueos generales
   const employeeBookings = dayBookings.filter(b => 
-    b.isManual === true || 
-    b.type === "block" || 
-    b.employee_id === employeeId || 
-    !b.employee_id
+    b.status !== "cancelled" && 
+    (b.employee_id === employeeId || !b.employee_id || b.isManual || b.type === "block")
   );
 
   for (const booking of employeeBookings) {
-    if (booking.status === "cancelled") continue;
-
-    const bStart = timeToMinutes(booking.start_time);
-    const bEnd = timeToMinutes(booking.end_time);
+    const bStart = timeToMinutes(booking.start_time || (booking.startTime?.split('T')[1]?.substring(0,5)));
+    const bEnd = timeToMinutes(booking.end_time || (booking.endTime?.split('T')[1]?.substring(0,5)));
     
-    // Si es un bloqueo manual de Google, ocupa todo el tramo de golpe
-    // Si es una reserva normal, respetamos las fases (p1, p2, p3)
-    let occupancyEnd;
-    if (booking.isManual || booking.type === "block") {
-      occupancyEnd = bEnd;
+    // 🔍 ANALIZAMOS EL TIPO DE BLOQUEO
+    // Si viene de Google y tiene la bandera 'isPersonal' (que pusimos en la API si decía "FUERA")
+    const isAnaAway = booking.isPersonal === true;
+
+    if (isAnaAway) {
+      // 🚨 CASO "FUERA": Ana no está en el local.
+      // Bloqueamos TODO (P1, P2 y P3). Nadie puede estar en el salón.
+      const awayBlock = { start: bStart, end: bEnd };
+      if (isOverlap(requiredPhases.p1, awayBlock)) return false;
+      if (requiredPhases.p2 && isOverlap(requiredPhases.p2, awayBlock)) return false;
+      if (requiredPhases.p3 && isOverlap(requiredPhases.p3, awayBlock)) return false;
     } else {
-      const p1 = Number(booking.phase1_min || 0);
-      occupancyEnd = bStart + p1;
-    }
-
-    const existingBlock = { start: bStart, end: occupancyEnd };
-
-    for (const reqPhase of requiredPhases) {
-      if (isOverlap(reqPhase, existingBlock)) return false;
+      // 💇 CASO "OCUPADA": Ana está con otra clienta (ej. Paqui)
+      // Solo bloqueamos P1 y P3. El tiempo de espera (P2) de la nueva reserva 
+      // SÍ puede solaparse con el trabajo de Ana con Paqui.
+      const workBlock = { start: bStart, end: bEnd };
       
-      // Si el bloqueo es de Google y es de todo el día, 
-      // bloqueamos también la fase 3 si existiera
-      if ((booking.isManual || booking.type === "block") && bEnd > reqPhase.start) {
-        if (reqPhase.start < bEnd && reqPhase.end > bStart) return false;
-      }
+      // Si el bloqueo es manual (Google) pero no es "FUERA", 
+      // asumimos que es una clienta manual y Ana está presente.
+      // Por tanto, solo choca con las fases de TRABAJO (P1 y P3) de la nueva reserva.
+      if (isOverlap(requiredPhases.p1, workBlock)) return false;
+      if (requiredPhases.p3 && isOverlap(requiredPhases.p3, workBlock)) return false;
     }
   }
   return true; 
 };
 
-// Función de ayuda interna para la fecha
 const getLocalDateStr = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 export const calculateAvailability = (
@@ -89,15 +86,11 @@ export const calculateAvailability = (
   
   const serviceCat = service.category?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
 
-  // 🔥 NUEVO: Filtramos quién sabe hacerlo, quién trabaja hoy y quién NO está de vacaciones
   const validStaff = employees.filter(e => {
-    // 1. ¿Sabe hacer el servicio y trabaja este día de la semana?
     if (!e.skills.includes(serviceCat) || !e.workingDays.includes(dayOfWeek)) return false;
-    
-    // 2. ¿Está de vacaciones personales en esta fecha concreta?
     if (e.vacations && e.vacations.length > 0) {
       for (const vac of e.vacations) {
-        if (dateStr >= vac.start && dateStr <= vac.end) return false; // Está de vacaciones, la descartamos
+        if (dateStr >= vac.start && dateStr <= vac.end) return false;
       }
     }
     return true;
@@ -110,9 +103,12 @@ export const calculateAvailability = (
       continue;
     }
 
-    const reqPhases: Phase[] = [];
-    if (cP1 > 0) reqPhases.push({ start: slotStart, end: slotStart + cP1 });
-    if (cP3 > 0) reqPhases.push({ start: slotStart + cP1 + cP2, end: slotStart + cP1 + cP2 + cP3 });
+    // Definimos las 3 fases de la cita que se quiere reservar
+    const reqPhases = {
+      p1: { start: slotStart, end: slotStart + cP1 },
+      p2: cP2 > 0 ? { start: slotStart + cP1, end: slotStart + cP1 + cP2 } : null,
+      p3: cP3 > 0 ? { start: slotStart + cP1 + cP2, end: slotStart + cP1 + cP2 + cP3 } : null
+    };
 
     let assignedId = null;
     for (const emp of validStaff) {

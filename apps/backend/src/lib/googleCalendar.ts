@@ -6,7 +6,6 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 
-// Activamos los plugins estrictamente necesarios
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -14,7 +13,7 @@ const TZ = "Europe/Madrid";
 const SYSTEM_MARKER = "ag-beauty-salon";
 
 export interface CalendarDateRange { start: Date | string; end: Date | string; }
-export interface BusyInterval { start: dayjs.Dayjs; end: dayjs.Dayjs; sourceEventId?: string; }
+export interface BusyInterval { start: dayjs.Dayjs; end: dayjs.Dayjs; sourceEventId?: string; isAppointment?: boolean; }
 export interface CreateAppointmentRequest { 
   start: Date | string; 
   end: Date | string; 
@@ -78,21 +77,30 @@ function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end
 
 function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number): BusyInterval[] {
     if (intervals.length === 0 || maxCapacity === 0) return [];
-    const events: { time: number, type: 'start' | 'end' }[] = [];
+    const events: { time: number, type: 'start' | 'end', isAppointment?: boolean }[] = [];
     for (const interval of intervals) {
-        events.push({ time: interval.start.valueOf(), type: 'start' });
-        events.push({ time: interval.end.valueOf(), type: 'end' });
+        events.push({ time: interval.start.valueOf(), type: 'start', isAppointment: interval.isAppointment });
+        events.push({ time: interval.end.valueOf(), type: 'end', isAppointment: interval.isAppointment });
     }
     events.sort((a, b) => a.time - b.time || (a.type === 'end' ? -1 : 1));
 
     let active = 0; let fullPeriodStart: number | null = null; const busyPeriods: BusyInterval[] = [];
+    let currentIsAppt = false;
+
     for (const event of events) {
         if (event.type === 'start') {
             active++;
-            if (active >= maxCapacity && fullPeriodStart === null) fullPeriodStart = event.time;
+            if (active >= maxCapacity && fullPeriodStart === null) {
+              fullPeriodStart = event.time;
+              currentIsAppt = event.isAppointment || false;
+            }
         } else {
             if (active >= maxCapacity && fullPeriodStart !== null && (active - 1) < maxCapacity) {
-                busyPeriods.push({ start: dayjs(fullPeriodStart).tz(TZ), end: dayjs(event.time).tz(TZ) });
+                busyPeriods.push({ 
+                  start: dayjs(fullPeriodStart).tz(TZ), 
+                  end: dayjs(event.time).tz(TZ),
+                  isAppointment: currentIsAppt 
+                });
                 fullPeriodStart = null;
             }
             active--;
@@ -103,12 +111,12 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
     for (let i = 1; i < busyPeriods.length; i++) {
         if (current.end.valueOf() >= busyPeriods[i].start.valueOf()) {
             current.end = current.end.valueOf() > busyPeriods[i].end.valueOf() ? current.end : busyPeriods[i].end;
+            current.isAppointment = current.isAppointment && busyPeriods[i].isAppointment;
         } else { merged.push(current); current = busyPeriods[i]; }
     }
     merged.push(current); return merged;
 }
 
-// 🚀 AHORA DEVOLVEMOS TAMBIÉN "rawEventIds" PARA EL CONSERJE
 export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[], rawEventIds: string[] }> {
   const calendar = getCalendar();
   const settingsDoc = await db.collection("admin").doc("settings").get();
@@ -138,10 +146,13 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     singleEvents: true,
   });
 
-  const rawEventIds: string[] = []; // 👈 GUARDAMOS LOS IDs REALES
+  const rawEventIds: string[] = []; 
 
   for (const event of res.data.items ?? []) {
-    if (event.id) rawEventIds.push(event.id); // 👈 LOS REGISTRAMOS TODOS
+    if (event.id) rawEventIds.push(event.id); 
+
+    const summary = (event.summary || "").toUpperCase();
+    const isAppointment = summary.includes("CITA");
 
     const parsed = parseGoogleEvent(event.start, event.end);
     if (!parsed) continue;
@@ -156,10 +167,10 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       const dKey = eventCurr.format('YYYY-MM-DD');
       if (intervalsByDay[dKey]) {
         if (isOurAppt && priv.phase1Min && priv.phase3Min) {
-            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute') });
-            intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end });
+            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true });
+            intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true });
         } else {
-            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.end });
+            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.end, isAppointment: isAppointment, sourceEventId: event.id });
         }
       }
       eventCurr = eventCurr.add(1, 'day');
@@ -172,12 +183,12 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     const workers = settings.workers.filter((w) => w.daysOfWeek.includes(day.day())).length;
     
     if (workers === 0) {
-      finalBusy.push({ start: day.startOf('day'), end: day.endOf('day') });
+      finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false });
     } else {
       finalBusy.push(...getOverlappingIntervals(intervals, workers));
     }
   }
-  return { busy: finalBusy, rawEventIds }; // 👈 DEVOLVEMOS LA LISTA PURA
+  return { busy: finalBusy, rawEventIds }; 
 }
 
 export async function createAppointment(req: CreateAppointmentRequest & { customerName?: string, customerPhone?: string }) {
@@ -188,7 +199,7 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
   const event = await calendar.events.insert({
     calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
     requestBody: {
-      summary: `[WEB] ${req.serviceId.toUpperCase()} - ${req.customerName || 'Cita'}`,
+      summary: `[WEB] CITA ${req.serviceId.toUpperCase()} - ${req.customerName || 'Cliente'}`,
       description: req.notes || "",
       start: { dateTime: startDayjs.format(), timeZone: TZ },
       end: { dateTime: endDayjs.format(), timeZone: TZ },
