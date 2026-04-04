@@ -25,7 +25,6 @@ const isOverlap = (p1: Phase, p2: Phase) => {
 };
 
 const isEmployeeFree = (employeeId: string, requiredPhases: {p1: Phase, p2: Phase | null, p3: Phase | null}, dayBookings: any[]) => {
-  // Filtramos los eventos que afectan a este empleado o bloqueos generales
   const employeeBookings = dayBookings.filter(b => 
     b.status !== "cancelled" && 
     (b.employee_id === employeeId || !b.employee_id || b.isManual || b.type === "block")
@@ -35,26 +34,20 @@ const isEmployeeFree = (employeeId: string, requiredPhases: {p1: Phase, p2: Phas
     const bStart = timeToMinutes(booking.start_time || (booking.startTime?.split('T')[1]?.substring(0,5)));
     const bEnd = timeToMinutes(booking.end_time || (booking.endTime?.split('T')[1]?.substring(0,5)));
     
-    // 🔍 ANALIZAMOS EL TIPO DE BLOQUEO
-    // Si viene de Google y tiene la bandera 'isPersonal' (que pusimos en la API si decía "FUERA")
-    const isAnaAway = booking.isPersonal === true;
+    // 🔍 Miramos si la API nos dice que es una CITA de trabajo
+    const isWorking = booking.isAppointment === true;
 
-    if (isAnaAway) {
-      // 🚨 CASO "FUERA": Ana no está en el local.
-      // Bloqueamos TODO (P1, P2 y P3). Nadie puede estar en el salón.
-      const awayBlock = { start: bStart, end: bEnd };
-      if (isOverlap(requiredPhases.p1, awayBlock)) return false;
-      if (requiredPhases.p2 && isOverlap(requiredPhases.p2, awayBlock)) return false;
-      if (requiredPhases.p3 && isOverlap(requiredPhases.p3, awayBlock)) return false;
+    if (!isWorking && (booking.isManual || booking.type === "block")) {
+      // 🚨 CASO "BLOQUEO TOTAL" (Médico, Vacaciones, o bloqueo de Google sin la palabra CITA)
+      // Bloqueamos TODO (P1, P2 y P3). Ana NO está en el local.
+      const totalBlock = { start: bStart, end: bEnd };
+      if (isOverlap(requiredPhases.p1, totalBlock)) return false;
+      if (requiredPhases.p2 && isOverlap(requiredPhases.p2, totalBlock)) return false;
+      if (requiredPhases.p3 && isOverlap(requiredPhases.p3, totalBlock)) return false;
     } else {
-      // 💇 CASO "OCUPADA": Ana está con otra clienta (ej. Paqui)
-      // Solo bloqueamos P1 y P3. El tiempo de espera (P2) de la nueva reserva 
-      // SÍ puede solaparse con el trabajo de Ana con Paqui.
+      // 💇 CASO "TRABAJO" (Es una CITA o una reserva de la web)
+      // Ana está en el salón. Solo bloqueamos sus manos (P1 y P3).
       const workBlock = { start: bStart, end: bEnd };
-      
-      // Si el bloqueo es manual (Google) pero no es "FUERA", 
-      // asumimos que es una clienta manual y Ana está presente.
-      // Por tanto, solo choca con las fases de TRABAJO (P1 y P3) de la nueva reserva.
       if (isOverlap(requiredPhases.p1, workBlock)) return false;
       if (requiredPhases.p3 && isOverlap(requiredPhases.p3, workBlock)) return false;
     }
@@ -88,6 +81,7 @@ export const calculateAvailability = (
 
   const validStaff = employees.filter(e => {
     if (!e.skills.includes(serviceCat) || !e.workingDays.includes(dayOfWeek)) return false;
+    
     if (e.vacations && e.vacations.length > 0) {
       for (const vac of e.vacations) {
         if (dateStr >= vac.start && dateStr <= vac.end) return false;
@@ -103,7 +97,7 @@ export const calculateAvailability = (
       continue;
     }
 
-    // Definimos las 3 fases de la cita que se quiere reservar
+    // 🚀 La magia está aquí: Empezamos a enviarle la p2 al comprobador
     const reqPhases = {
       p1: { start: slotStart, end: slotStart + cP1 },
       p2: cP2 > 0 ? { start: slotStart + cP1, end: slotStart + cP1 + cP2 } : null,
