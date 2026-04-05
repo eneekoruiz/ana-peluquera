@@ -145,12 +145,23 @@ const Reservation = () => {
         
         const data = await response.json();
         
-        // 🚀 EL FIX ESTÁ AQUÍ: Añadido slot.start y slot.end
-        const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => ({
-          ...slot,
-          start_time: (slot.startTime || slot.start_time || slot.start || "").split('T')[1]?.substring(0, 5) || "00:00",
-          end_time: (slot.endTime || slot.end_time || slot.end || "").split('T')[1]?.substring(0, 5) || "23:59",
-        }));
+        // 🚀 FIX: Lector de horas inteligente (A prueba de formatos)
+        const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => {
+          let st = "00:00";
+          let et = "23:59";
+          
+          // Leer hora de inicio
+          if (slot.start_time && !slot.start_time.includes('T')) st = slot.start_time;
+          else if (slot.startTime && slot.startTime.includes('T')) st = slot.startTime.split('T')[1].substring(0, 5);
+          else if (slot.start && slot.start.includes('T')) st = slot.start.split('T')[1].substring(0, 5);
+
+          // Leer hora de fin
+          if (slot.end_time && !slot.end_time.includes('T')) et = slot.end_time;
+          else if (slot.endTime && slot.endTime.includes('T')) et = slot.endTime.split('T')[1].substring(0, 5);
+          else if (slot.end && slot.end.includes('T')) et = slot.end.split('T')[1].substring(0, 5);
+
+          return { ...slot, start_time: st, end_time: et };
+        });
 
         setDayBookings(formattedBookings);
       } catch (error) {
