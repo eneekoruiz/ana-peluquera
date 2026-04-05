@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
-import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle, Clock, Plus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import BookingFAQ from "@/components/BookingFAQ";
 import { Scissors, Hand, Sparkles, Paintbrush, Droplets, Palette, Flower2, CircleDot } from "lucide-react";
@@ -145,17 +145,14 @@ const Reservation = () => {
         
         const data = await response.json();
         
-        // 🚀 FIX: Lector de horas inteligente (A prueba de formatos)
         const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => {
           let st = "00:00";
           let et = "23:59";
           
-          // Leer hora de inicio
           if (slot.start_time && !slot.start_time.includes('T')) st = slot.start_time;
           else if (slot.startTime && slot.startTime.includes('T')) st = slot.startTime.split('T')[1].substring(0, 5);
           else if (slot.start && slot.start.includes('T')) st = slot.start.split('T')[1].substring(0, 5);
 
-          // Leer hora de fin
           if (slot.end_time && !slot.end_time.includes('T')) et = slot.end_time;
           else if (slot.endTime && slot.endTime.includes('T')) et = slot.endTime.split('T')[1].substring(0, 5);
           else if (slot.end && slot.end.includes('T')) et = slot.end.split('T')[1].substring(0, 5);
@@ -303,34 +300,88 @@ const Reservation = () => {
     );
   }
 
+  // 🚀 AQUÍ ESTÁ EL NUEVO TICKET PREMIUM Y BOTONES
   if (submitted && service) {
+    const startMin = timeToMinutes(selectedTime || "00:00");
+    const duration = service.duration_min || service.durationMin || 0;
+    const endTimeStr = minutesToTime(startMin + duration);
+
     return (
-      <main className="pt-16 min-h-screen flex items-center justify-center">
+      <main className="pt-16 min-h-screen flex items-center justify-center pb-20">
         <div className="container max-w-md text-center px-6">
           <ScrollReveal>
-            <div className="w-24 h-24 rounded-full bg-green-50 mx-auto mb-8 flex items-center justify-center">
-              <Check size={40} className="text-green-600" />
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-green-100">
+              <Check size={32} className="text-green-600" />
             </div>
-            <h1 className="font-serif text-3xl text-foreground mb-3" style={{ lineHeight: "1.1" }}>
+            
+            <h1 className="font-serif text-3xl text-foreground mb-2" style={{ lineHeight: "1.1" }}>
               ¡Reserva Confirmada!
             </h1>
-            <p className="text-muted-foreground mb-8">Te esperamos en el salón</p>
-            <div className="bg-card rounded-lg p-6 shadow-sm text-left space-y-3 mb-8">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Servicio</span>
-                <span className="text-foreground font-medium">{getServiceName(service)}</span>
+            <p className="text-muted-foreground mb-8 text-sm">
+              Te hemos enviado un email con todos los detalles.
+            </p>
+
+            {/* Ticket de Reserva Premium */}
+            <div className="bg-card rounded-xl p-6 shadow-md border border-border text-left mb-8 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-sand-dark"></div>
+              
+              <div className="border-b border-border pb-4 mb-4">
+                <h3 className="font-serif text-lg text-foreground capitalize">{name}</h3>
+                <p className="text-xs text-muted-foreground mt-1">{email} • {phone}</p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Fecha</span>
-                <span className="text-foreground font-medium tabular-nums">
-                  {selectedDate?.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Hora</span>
-                <span className="text-foreground font-medium tabular-nums">{selectedTime}</span>
+
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Scissors size={14} className="text-sand-dark" /> Servicio
+                  </span>
+                  <span className="text-foreground font-medium text-right max-w-[60%] truncate">
+                    {getServiceName(service)}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <CalendarIcon size={14} className="text-sand-dark" /> Fecha
+                  </span>
+                  <span className="text-foreground font-medium capitalize tabular-nums">
+                    {selectedDate?.toLocaleDateString("es-ES", { weekday: 'long', day: "numeric", month: "long" })}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Clock size={14} className="text-sand-dark" /> Horario
+                  </span>
+                  <div className="text-right">
+                    <span className="text-foreground font-medium tabular-nums">{selectedTime} - {endTimeStr}</span>
+                    <span className="block text-[10px] text-muted-foreground mt-0.5">({duration} min)</span>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Botones de Acción */}
+            <div className="flex flex-col gap-3">
+              <Button 
+                variant="hero" 
+                className="w-full h-12 text-sm font-medium" 
+                onClick={() => {
+                  setSubmitted(false);
+                  setStep(1);
+                  setSelectedServiceId(null);
+                  setSelectedTime(null);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
+                <Plus size={16} className="mr-2" /> Hacer otra reserva
+              </Button>
+              
+              <Button variant="outline" className="w-full h-12 text-sm font-medium" asChild>
+                <Link to="/">Volver al inicio</Link>
+              </Button>
+            </div>
+            
           </ScrollReveal>
         </div>
       </main>
