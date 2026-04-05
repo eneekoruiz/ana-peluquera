@@ -5,7 +5,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import {
   ArrowRight, Clock, Timer, Scissors, Hand, Sparkles,
   Paintbrush, Droplets, Palette, Flower2, CircleDot,
-  Eye, EyeOff, Plus, GripVertical
+  Eye, EyeOff, Plus, GripVertical, Trash2
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 // 🔥 Importaciones de Firebase
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, writeBatch, collection, addDoc } from "firebase/firestore";
+import { doc, updateDoc, writeBatch, collection, addDoc, deleteDoc } from "firebase/firestore";
 
 const iconOptions = [
   { name: "scissors", Icon: Scissors, label: "Tijeras" },
@@ -94,8 +94,26 @@ const useAddService = () => {
       };
       await addDoc(collection(db, "services"), newService);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["services"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["services"] });
+      toast.success("Servicio creado");
+    },
     onError: (err: Error) => toast.error("Error al crear: " + err.message),
+  });
+};
+
+// 🚀 NUEVO HOOK: Para destruir servicios definitivamente
+const useDeleteService = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await deleteDoc(doc(db, "services", id));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["services"] });
+      toast.success("Servicio eliminado permanentemente");
+    },
+    onError: (err: Error) => toast.error("Error al eliminar: " + err.message),
   });
 };
 
@@ -287,6 +305,7 @@ const Services = () => {
   const updateService = useUpdateService();
   const reorderServices = useReorderServices();
   const addService = useAddService();
+  const deleteService = useDeleteService();
 
   const { data: pageContent } = useServicesPageContent();
   const updatePageContent = useUpdateServicesPageContent();
@@ -306,6 +325,12 @@ const Services = () => {
     setLocalOrder((prev) => ({ ...prev, [cat]: reordered }));
     reorderServices.mutate(reordered.map((s) => s.id));
   }, [reorderServices]);
+
+  const handleDelete = useCallback((id: string) => {
+    if (window.confirm("¿Estás seguro de que quieres eliminar este servicio de forma permanente? Esta acción no se puede deshacer.")) {
+      deleteService.mutate(id);
+    }
+  }, [deleteService]);
 
   const langLabel = lang === "es" ? "Español" : lang === "en" ? "English" : "Euskara";
 
@@ -424,7 +449,6 @@ const Services = () => {
 
                               <div className="flex items-center justify-between relative">
                                 <div className="flex items-center gap-1.5">
-                                  {/* 🔥 AQUÍ ESTÁ EL CAMBIO: El cliente solo ve el reloj y los minutos */}
                                   {isEditingView ? (
                                     <EditableTiming 
                                       service={svc} 
@@ -439,13 +463,25 @@ const Services = () => {
                                 </div>
 
                                 {isEditingView && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateField(svc.id, "visible", !svc.visible)}
-                                    className={cn("flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-colors", isHidden ? "bg-amber-100 text-amber-700 hover:bg-amber-200" : "bg-muted text-muted-foreground")}
-                                  >
-                                    {isHidden ? <><EyeOff size={10} /> Oculto en web</> : <><Eye size={10} /> Ocultar</>}
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateField(svc.id, "visible", !svc.visible)}
+                                      className={cn("flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-colors", isHidden ? "bg-amber-100 text-amber-700 hover:bg-amber-200" : "bg-muted hover:bg-muted/80 text-muted-foreground")}
+                                    >
+                                      {isHidden ? <><EyeOff size={10} /> Oculto en web</> : <><Eye size={10} /> Ocultar</>}
+                                    </button>
+                                    
+                                    {/* 🚀 NUEVO BOTÓN: Eliminar permanentemente */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(svc.id)}
+                                      className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-colors bg-red-50 text-red-600 hover:bg-red-100"
+                                      title="Eliminar servicio permanentemente"
+                                    >
+                                      <Trash2 size={10} />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -457,7 +493,7 @@ const Services = () => {
                 />
 
                 {isEditingView && (
-                  <button type="button" onClick={() => addService.mutate(cat)} disabled={addService.isPending} className="mt-3 w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-amber-300 rounded-lg text-xs text-amber-600 hover:bg-amber-50 hover:border-amber-400">
+                  <button type="button" onClick={() => addService.mutate(cat)} disabled={addService.isPending} className="mt-3 w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-amber-300 rounded-lg text-xs text-amber-600 hover:bg-amber-50 hover:border-amber-400 transition-colors">
                     <Plus size={14} /> Añadir servicio en "{t(`booking.categories.${cat}`)}"
                   </button>
                 )}
