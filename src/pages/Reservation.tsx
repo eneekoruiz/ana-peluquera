@@ -85,8 +85,6 @@ const Reservation = () => {
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // 🚀 NUEVO ESTADO: Para controlar el "Fantasma" de las horas
   const [isFetchingSlots, setIsFetchingSlots] = useState(false);
 
   const todayStr = getLocalDateStr();
@@ -123,14 +121,13 @@ const Reservation = () => {
     }
   }, [settings]);
 
-  // Carga de disponibilidad desde nuestra API
   useEffect(() => {
     if (!dateStr) {
       setDayBookings([]);
       return;
     }
     const fetchBookings = async () => {
-      setIsFetchingSlots(true); // 🚀 Activamos el candado visual
+      setIsFetchingSlots(true);
       try {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
         const response = await fetch(`${API_URL}/bookings?date=${dateStr}`);
@@ -145,9 +142,9 @@ const Reservation = () => {
 
         setDayBookings(formattedBookings);
       } catch (error) {
-        console.error("Error cargando disponibilidad global:", error);
+        console.error("Error cargando disponibilidad:", error);
       } finally {
-        setIsFetchingSlots(false); // 🚀 Quitamos el candado visual
+        setIsFetchingSlots(false);
       }
     };
     fetchBookings();
@@ -156,8 +153,9 @@ const Reservation = () => {
   const currentStaff = (settings as any)?.staff || defaultStaff;
 
   const { occupiedSlots } = useMemo(() => {
-    if (!service || !selectedDate) {
-      return { occupiedSlots: new Set<string>(), slotAssignments: {} };
+    // 🚀 MAGIA: Si está cargando o no hay fecha, DEVOLVEMOS TODOS LOS HUECOS COMO OCUPADOS
+    if (!service || !selectedDate || isFetchingSlots) {
+      return { occupiedSlots: new Set<string>(ALL_SLOTS), slotAssignments: {} };
     }
 
     if (isDateDisabled(selectedDate)) {
@@ -172,7 +170,13 @@ const Reservation = () => {
     );
 
     return { occupiedSlots: occupied, slotAssignments: assignments };
-  }, [dayBookings, service, selectedDate, settings]); 
+  }, [dayBookings, service, selectedDate, settings, isFetchingSlots]); 
+
+  const isDayFull = useMemo(() => {
+    if (isFetchingSlots || ALL_SLOTS.length === 0) return false;
+    const availableCount = ALL_SLOTS.filter(slot => !occupiedSlots.has(slot)).length;
+    return availableCount === 0;
+  }, [occupiedSlots, isFetchingSlots]);
 
   const bookingsDisabled = settings?.bookings_enabled === false;
   const categories = [...new Set(dbServices.map((s: any) => normalizeCategory(s.category)))].filter(Boolean) as string[];
@@ -234,9 +238,7 @@ const Reservation = () => {
         toast.error("Horario no disponible", {
           description: responseData.error || "Ese horario acaba de ser ocupado. Elige otro."
         });
-        
         setStep(3);
-        setIsFetchingSlots(true); // 🚀 Ponemos cargando si nos rebotan
         const refresh = await fetch(`${API_URL}/bookings?date=${selectedDateStr}`);
         const freshData = await refresh.json();
         setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
@@ -244,7 +246,6 @@ const Reservation = () => {
           start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
           end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
         })));
-        setIsFetchingSlots(false);
         setIsSubmitting(false);
         return; 
       }
@@ -272,20 +273,8 @@ const Reservation = () => {
             </div>
             <h1 className="font-serif text-3xl text-foreground mb-4">Mantenimiento</h1>
             <p className="text-muted-foreground mb-8 leading-relaxed">
-              El sistema de reservas online está pausado temporalmente. Pero no te preocupes, ¡puedes pedir tu cita directamente contactando con nosotros!
+              El sistema de reservas online está pausado temporalmente.
             </p>
-            <div className="flex flex-col gap-3">
-              <Button variant="hero" size="lg" className="w-full h-14 text-base gap-2" asChild>
-                <a href="https://wa.me/34943000000?text=Hola,%20quer%C3%ADa%20pedir%20una%20cita" target="_blank" rel="noopener noreferrer">
-                  <MessageCircle size={20} /> Escribir por WhatsApp
-                </a>
-              </Button>
-              <Button variant="outline" size="lg" className="w-full h-14 text-base gap-2 border-sand-dark text-sand-dark hover:bg-sand-light/20" asChild>
-                <a href="tel:+34943000000">
-                  <Phone size={20} /> Llamar al salón
-                </a>
-              </Button>
-            </div>
           </ScrollReveal>
         </div>
       </main>
@@ -319,22 +308,7 @@ const Reservation = () => {
                 <span className="text-muted-foreground">Hora</span>
                 <span className="text-foreground font-medium tabular-nums">{selectedTime}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Duración</span>
-                <span className="text-foreground font-medium">{service.duration_min || service.durationMin} min</span>
-              </div>
             </div>
-            <div className="space-y-3">
-              <Button variant="hero" size="lg" className="w-full h-14 text-base gap-2" asChild>
-                <a
-                  href={`https://wa.me/34943000000?text=${encodeURIComponent(`Hola, he reservado ${getServiceName(service)} el ${selectedDate?.toLocaleDateString("es-ES")} a las ${selectedTime}`)}`}
-                  target="_blank" rel="noopener noreferrer"
-                >
-                  <MessageCircle size={18} /> Contactar por WhatsApp
-                </a>
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-6">José María Salaberría 33, Donostia</p>
           </ScrollReveal>
         </div>
       </main>
@@ -406,7 +380,6 @@ const Reservation = () => {
               {loadingServices ? (
                 <div className="flex justify-center items-center py-6">
                    <div className="w-6 h-6 border-2 border-sand-dark/20 border-t-sand-dark rounded-full animate-spin mr-3"></div>
-                   <p className="text-sm text-muted-foreground">Cargando servicios…</p>
                 </div>
               ) : (
                 <>
@@ -436,7 +409,6 @@ const Reservation = () => {
                       {filteredServices.map((svc: any) => {
                         const Icon = iconMap[svc.icon_name] || Scissors;
                         const isSelected = selectedServiceId === svc.id;
-                        
                         const name = getServiceName(svc);
                         const duration = svc.duration_min || svc.durationMin || 0;
                         const priceStr = svc.price_cents
@@ -502,14 +474,6 @@ const Reservation = () => {
                   className={`bg-card rounded-lg shadow-sm p-4 ${!isEditingView ? 'pointer-events-auto' : 'opacity-75 pointer-events-none'}`}
                 />
               </div>
-              {selectedDate && (
-                <div className="max-w-xs mx-auto p-4 bg-sand-light/20 rounded-xl border border-sand-dark/20 text-center animate-in fade-in zoom-in-95">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest-plus mb-1">Día seleccionado:</p>
-                  <p className="text-lg font-serif text-sand-dark capitalize">
-                    {selectedDate.toLocaleDateString(lang === "eu" ? "eu" : lang === "en" ? "en-GB" : "es-ES", { weekday: "long", day: "numeric", month: "long" })}
-                  </p>
-                </div>
-              )}
             </ScrollReveal>
           )}
 
@@ -529,34 +493,43 @@ const Reservation = () => {
                 {selectedDate?.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
               </p>
               
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 min-h-[200px]">
-                {/* 🚀 AQUI EVALUAMOS SI ESTÁ CARGANDO */}
-                {isFetchingSlots ? (
-                  <div className="col-span-3 sm:col-span-4 flex flex-col items-center justify-center py-12 opacity-80 animate-in fade-in zoom-in duration-300">
-                    <div className="w-10 h-10 border-2 border-sand-dark/20 border-t-sand-dark rounded-full animate-spin mb-4"></div>
-                    <p className="text-sm font-sans tracking-wide text-sand-dark animate-pulse">Buscando huecos libres...</p>
+              <div className="min-h-[260px] flex flex-col">
+                {isDayFull ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 px-6 text-center animate-in zoom-in-95 duration-500">
+                    <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4">
+                       <CalendarIcon size={24} className="text-amber-600/50" />
+                    </div>
+                    <h3 className="font-serif text-lg text-foreground mb-2">Día completo</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+                      Lo sentimos, no quedan huecos para este servicio hoy. 
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => setStep(2)}>
+                      <ArrowLeft size={14} className="mr-2" /> Elegir otro día
+                    </Button>
                   </div>
                 ) : (
-                  ALL_SLOTS.map((time) => {
-                    const isOccupied = occupiedSlots.has(time);
-                    const isSelected = selectedTime === time;
-                    return (
-                      <button
-                        key={time}
-                        disabled={isOccupied || isEditingView}
-                        onClick={() => setSelectedTime(time)}
-                        className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 ${!isEditingView ? 'active:scale-95' : ''} ${
-                          isOccupied
-                            ? "bg-secondary/50 text-muted-foreground/40 cursor-not-allowed line-through"
-                            : isSelected
-                            ? "bg-charcoal text-cream shadow-md"
-                            : "bg-card text-foreground shadow-sm hover:shadow-md"
-                        }`}
-                      >
-                        {time}
-                      </button>
-                    );
-                  })
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 animate-in fade-in duration-500">
+                    {ALL_SLOTS.map((time) => {
+                      const isOccupied = occupiedSlots.has(time);
+                      const isSelected = selectedTime === time;
+                      return (
+                        <button
+                          key={time}
+                          disabled={isOccupied || isEditingView}
+                          onClick={() => setSelectedTime(time)}
+                          className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 ${!isEditingView ? 'active:scale-95' : ''} ${
+                            isOccupied
+                              ? "bg-secondary/50 text-muted-foreground/40 cursor-not-allowed line-through"
+                              : isSelected
+                              ? "bg-charcoal text-cream shadow-md"
+                              : "bg-card text-foreground shadow-sm hover:shadow-md"
+                          }`}
+                        >
+                          {time}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </ScrollReveal>
@@ -611,27 +584,6 @@ const Reservation = () => {
                     </span>
                   </label>
                 </div>
-                <div className="pt-4 border-t border-border space-y-2">
-                  <p className="text-xs font-sans uppercase tracking-wide text-muted-foreground mb-3">{t("booking.summary")}</p>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("booking.service")}</span>
-                    <span className="text-foreground font-medium">{service ? getServiceName(service) : ""}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("booking.date")}</span>
-                    <span className="text-foreground font-medium tabular-nums">
-                      {selectedDate?.toLocaleDateString("es-ES", { day: "numeric", month: "long" })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("booking.time")}</span>
-                    <span className="text-foreground font-medium tabular-nums">{selectedTime}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t("booking.duration")}</span>
-                    <span className="text-foreground font-medium">{service?.duration_min || service?.durationMin} min</span>
-                  </div>
-                </div>
               </div>
             </ScrollReveal>
           )}
@@ -640,14 +592,14 @@ const Reservation = () => {
             <div className="flex gap-3 mt-8">
               {step > 1 && (
                 <Button variant="outline" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={isEditingView || (step === 3 && isFetchingSlots)} // 🚀 Bloqueamos atrás si está cargando
+                  disabled={isEditingView}
                   onClick={() => setStep((step - 1) as Step)}>
                   <ArrowLeft size={16} /> {t("booking.back")}
                 </Button>
               )}
               {step < totalSteps ? (
                 <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={!canAdvance() || isEditingView || (step === 2 && isFetchingSlots)} // 🚀 Bloqueamos siguiente si está cargando el paso 2 a 3
+                  disabled={!canAdvance() || isEditingView || (step === 3 && isDayFull)} 
                   onClick={() => setStep((step + 1) as Step)}>
                   {t("booking.next")} <ArrowRight size={16} />
                 </Button>
@@ -659,8 +611,6 @@ const Reservation = () => {
               )}
             </div>
           </ScrollReveal>
-
-          <BookingFAQ />
         </div>
       </section>
     </main>

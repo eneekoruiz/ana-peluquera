@@ -6,7 +6,6 @@ import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 
-// Importamos los idiomas para las fechas
 import 'dayjs/locale/es';
 import 'dayjs/locale/en';
 import 'dayjs/locale/eu';
@@ -50,7 +49,6 @@ export async function createBooking(data: BookingPayload) {
   
   const startDate = dayjs.tz(`${data.date} ${data.start_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
   const endDate = dayjs.tz(`${data.date} ${data.end_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
-  
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
 
   const serviceDoc = await db.collection('services').doc(data.service_id).get();
@@ -105,9 +103,9 @@ export async function createBooking(data: BookingPayload) {
       ...data,
       id: bookingRef.id,
       cancelToken,
-      // 🚀 EL FIX ESTÁ AQUÍ ABAJO: Nombres clásicos para que la web los encuentre
-      status: 'pending', 
-      created_at: new Date().toISOString(), 
+      // 🚀 FIX: Devolvemos status a confirmed para que la web lo reconozca al cancelar
+      status: 'confirmed', 
+      createdAt: new Date().toISOString(), 
       duration_min: p1Min + p2Min + p3Min,
       lang: userLang,
       phase1_min: p1Min,
@@ -133,7 +131,7 @@ export async function createBooking(data: BookingPayload) {
     await bookingRef.update({ googleEventId: gcal.eventId });
 
     const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
-    const formattedDate = startDate.locale(userLang).format('dddd, D [de] MMMM YYYY'); 
+    const formattedDate = startDate.locale(userLang).format('D [de] MMMM YYYY'); 
     const formattedTime = startDate.format('HH:mm');
 
     const subjects = {
@@ -146,7 +144,7 @@ export async function createBooking(data: BookingPayload) {
       from: 'AG Beauty Salon <onboarding@resend.dev>', 
       to: data.client_email,
       subject: subjects[userLang as keyof typeof subjects],
-      html: getConfirmationEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
+      html: getProfessionalEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
     });
 
     return { success: true, bookingId: bookingRef.id };
@@ -161,7 +159,6 @@ export async function createBooking(data: BookingPayload) {
 export async function cancelBookingByToken(token: string) {
   try {
     const db = getFirebaseAdminApp().firestore();
-    // 🚀 FIX: Le decimos que busque tanto pending como confirmed por seguridad
     const snapshot = await db.collection('bookings')
       .where('cancelToken', '==', token)
       .where('status', 'in', ['pending', 'confirmed'])
@@ -184,58 +181,86 @@ export async function cancelBookingByToken(token: string) {
 }
 
 // ============================================================================
-// ✉️ TEMPLATE DE EMAIL
+// ✉️ TEMPLATE DE EMAIL ULTRA-PROFESIONAL (A prueba de Outlook)
 // ============================================================================
-function getConfirmationEmailHtml(name: string, service: string, date: string, time: string, cancelUrl: string, lang: string): string {
+function getProfessionalEmailHtml(name: string, service: string, date: string, time: string, cancelUrl: string, lang: string): string {
   const t = {
-    es: { title: "Cita Confirmada", subtitle: `Hola ${name}, te esperamos en el salón.`, btnCancel: "GESTIONAR CITA", call: "LLAMAR", wa: "WHATSAPP" },
-    en: { title: "Booking Confirmed", subtitle: `Hello ${name}, we look forward to seeing you.`, btnCancel: "MANAGE BOOKING", call: "CALL", wa: "WHATSAPP" },
-    eu: { title: "Hitzordua Baieztatuta", subtitle: `Kaixo ${name}, apaindegian itxaroten zaitugu.`, btnCancel: "KUDEATU HITZORDUA", call: "DEITU", wa: "WHATSAPP" }
+    es: { subtitle: "RESERVA CONFIRMADA", hello: "Hola", text: "Tu cita ha sido agendada correctamente. A continuación, los detalles de tu reserva:", srv: "SERVICIO", dat: "FECHA", tim: "HORA", btn: "GESTIONAR CITA", call: "LLAMAR", wa: "WHATSAPP" },
+    en: { subtitle: "BOOKING CONFIRMED", hello: "Hello", text: "Your appointment has been successfully scheduled. Below are the details of your booking:", srv: "SERVICE", dat: "DATE", tim: "TIME", btn: "MANAGE BOOKING", call: "CALL", wa: "WHATSAPP" },
+    eu: { subtitle: "HITZORDUA BAIEZTATUTA", hello: "Kaixo", text: "Zure hitzordua behar bezala gorde da. Hemen dituzu xehetasunak:", srv: "ZERBITZUA", dat: "DATA", tim: "ORDUA", btn: "KUDEATU HITZORDUA", call: "DEITU", wa: "WHATSAPP" }
   };
-  const text = t[lang as keyof typeof t] || t.es;
+  const txt = t[lang as keyof typeof t] || t.es;
 
   return `
   <!DOCTYPE html>
   <html>
-  <body style="margin: 0; padding: 0; background-color: #FDFDFD; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
-    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
+  <head>
+    <meta charset="utf-8">
+    <title>AG Beauty Salon</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #f7f7f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f7f7f7; padding: 40px 15px;">
       <tr>
         <td align="center">
-          <table width="100%" style="max-width: 500px; background-color: #ffffff; border: 1px solid #eeeeee;">
+          <table width="100%" max-width="500" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; max-width: 500px; border: 1px solid #e5e5e5;">
+            
             <tr>
-              <td align="center" style="padding: 40px 40px 10px 40px;">
-                <h1 style="margin: 0; font-size: 22px; font-weight: 300; letter-spacing: 5px; color: #111;">A G</h1>
-                <p style="margin: 5px 0 0 0; font-size: 10px; letter-spacing: 3px; color: #999; text-transform: uppercase;">Beauty Salon</p>
+              <td align="center" style="padding: 40px 30px 20px 30px;">
+                <h1 style="margin: 0; font-size: 26px; font-weight: 300; letter-spacing: 6px; color: #000000;">A G</h1>
+                <p style="margin: 8px 0 0 0; font-size: 10px; letter-spacing: 2px; color: #888888; text-transform: uppercase;">Beauty Salon</p>
               </td>
             </tr>
+
             <tr>
-              <td style="padding: 40px;">
-                <h2 style="font-size: 20px; font-weight: 400; color: #111; margin-bottom: 10px;">${text.title}</h2>
-                <p style="font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 30px;">${text.subtitle}</p>
+              <td align="center" style="padding: 0 30px;">
+                <hr style="border: none; border-top: 1px solid #eeeeee; margin: 0;" />
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 30px;">
+                <p style="margin: 0 0 10px 0; font-size: 10px; letter-spacing: 2px; color: #888888; text-transform: uppercase;">${txt.subtitle}</p>
+                <p style="margin: 0 0 25px 0; font-size: 14px; color: #333333; line-height: 1.6;">${txt.hello} ${name},<br>${txt.text}</p>
                 
-                <div style="border-left: 2px solid #111; padding-left: 20px; margin-bottom: 40px;">
-                  <p style="margin: 0; font-size: 11px; color: #999; letter-spacing: 1px;">SERVICIO</p>
-                  <p style="margin: 5px 0 15px 0; font-size: 16px; color: #111;">${service}</p>
-                  <p style="margin: 0; font-size: 11px; color: #999; letter-spacing: 1px;">CUÁNDO</p>
-                  <p style="margin: 5px 0 0 0; font-size: 16px; color: #111; text-transform: capitalize;">${date} — ${time}h</p>
-                </div>
-
-                <a href="${cancelUrl}" style="display: block; text-align: center; padding: 16px; background-color: #111; color: #fff; text-decoration: none; font-size: 12px; letter-spacing: 2px; font-weight: 500; margin-bottom: 40px;">${text.btnCancel}</a>
-
-                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-top: 1px solid #eee; padding-top: 30px;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #fafafa; border-radius: 4px; padding: 20px;">
                   <tr>
-                    <td width="50%" align="center">
-                      <a href="tel:+34943000000" style="text-decoration: none; color: #111; font-size: 11px; letter-spacing: 1px;"><strong>${text.call}</strong></a>
+                    <td style="padding-bottom: 12px;">
+                      <p style="margin: 0; font-size: 10px; letter-spacing: 1px; color: #888888; text-transform: uppercase;">${txt.srv}</p>
+                      <p style="margin: 4px 0 0 0; font-size: 15px; color: #000000; font-weight: 500;">${service}</p>
                     </td>
-                    <td width="50%" align="center">
-                      <a href="https://wa.me/34943000000" style="text-decoration: none; color: #111; font-size: 11px; letter-spacing: 1px;"><strong>${text.wa}</strong></a>
+                  </tr>
+                  <tr>
+                    <td style="padding-bottom: 12px; border-top: 1px solid #eeeeee; padding-top: 12px;">
+                      <p style="margin: 0; font-size: 10px; letter-spacing: 1px; color: #888888; text-transform: uppercase;">${txt.dat}</p>
+                      <p style="margin: 4px 0 0 0; font-size: 15px; color: #000000; font-weight: 500;">${date}</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border-top: 1px solid #eeeeee; padding-top: 12px;">
+                      <p style="margin: 0; font-size: 10px; letter-spacing: 1px; color: #888888; text-transform: uppercase;">${txt.tim}</p>
+                      <p style="margin: 4px 0 0 0; font-size: 15px; color: #000000; font-weight: 500;">${time}h</p>
                     </td>
                   </tr>
                 </table>
+
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 35px;">
+                  <tr>
+                    <td align="center">
+                      <a href="${cancelUrl}" style="background-color: #000000; color: #ffffff; padding: 14px 28px; text-decoration: none; display: inline-block; font-size: 12px; letter-spacing: 1px; font-weight: bold; border-radius: 2px;">${txt.btn}</a>
+                    </td>
+                  </tr>
+                </table>
+
               </td>
             </tr>
+            
+            <tr>
+              <td align="center" style="padding: 25px 30px; background-color: #fafafa; border-top: 1px solid #eeeeee;">
+                <p style="margin: 0; font-size: 10px; color: #999999; letter-spacing: 1px; text-transform: uppercase;">JOSÉ MARÍA SALABERRÍA 33, DONOSTIA</p>
+              </td>
+            </tr>
+
           </table>
-          <p style="margin-top: 30px; font-size: 10px; color: #bbb; letter-spacing: 1px;">JOSÉ MARÍA SALABERRÍA 33, DONOSTIA</p>
         </td>
       </tr>
     </table>
