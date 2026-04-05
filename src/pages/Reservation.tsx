@@ -85,6 +85,9 @@ const Reservation = () => {
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 🚀 NUEVO ESTADO: Para controlar el "Fantasma" de las horas
+  const [isFetchingSlots, setIsFetchingSlots] = useState(false);
 
   const todayStr = getLocalDateStr();
   const dateStr = selectedDate ? getLocalDateStr(selectedDate) : "";
@@ -127,6 +130,7 @@ const Reservation = () => {
       return;
     }
     const fetchBookings = async () => {
+      setIsFetchingSlots(true); // 🚀 Activamos el candado visual
       try {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
         const response = await fetch(`${API_URL}/bookings?date=${dateStr}`);
@@ -142,6 +146,8 @@ const Reservation = () => {
         setDayBookings(formattedBookings);
       } catch (error) {
         console.error("Error cargando disponibilidad global:", error);
+      } finally {
+        setIsFetchingSlots(false); // 🚀 Quitamos el candado visual
       }
     };
     fetchBookings();
@@ -193,7 +199,6 @@ const Reservation = () => {
     return false;
   };
 
-  // 🚀 AQUÍ ESTÁ LA MAGIA ARREGLADA
   const handleSubmit = async () => {
     if (!service || !selectedDate || !selectedTime) return;
     setIsSubmitting(true);
@@ -204,7 +209,6 @@ const Reservation = () => {
       const duration = service.duration_min || service.durationMin || 0;
       const endTimeStr = minutesToTime(startMin + duration);
 
-      // Preparamos los datos tal y como la API los exige
       const bookingPayload = {
         client_name: name.trim(),
         client_email: email.trim() || "eruiz084@ikasle.ehu.eus", 
@@ -218,7 +222,6 @@ const Reservation = () => {
 
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
       
-      // Llamamos A LA API, no a Firebase directamente
       const response = await fetch(`${API_URL}/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -227,14 +230,13 @@ const Reservation = () => {
 
       const responseData = await response.json();
 
-      // Si la API detecta que Ana bloqueó la hora, nos devuelve un error
       if (!response.ok) {
         toast.error("Horario no disponible", {
           description: responseData.error || "Ese horario acaba de ser ocupado. Elige otro."
         });
         
-        // Volvemos al paso 3 y recargamos las horas
         setStep(3);
+        setIsFetchingSlots(true); // 🚀 Ponemos cargando si nos rebotan
         const refresh = await fetch(`${API_URL}/bookings?date=${selectedDateStr}`);
         const freshData = await refresh.json();
         setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
@@ -242,11 +244,11 @@ const Reservation = () => {
           start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
           end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
         })));
+        setIsFetchingSlots(false);
         setIsSubmitting(false);
         return; 
       }
 
-      // Si todo ha ido bien
       toast.success("¡Cita reservada con éxito!", { description: "Te esperamos en el salón." });
       setSubmitted(true);
 
@@ -526,27 +528,36 @@ const Reservation = () => {
               <p className="text-center text-xs text-muted-foreground mb-6 capitalize tabular-nums">
                 {selectedDate?.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
               </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {ALL_SLOTS.map((time) => {
-                  const isOccupied = occupiedSlots.has(time);
-                  const isSelected = selectedTime === time;
-                  return (
-                    <button
-                      key={time}
-                      disabled={isOccupied || isEditingView}
-                      onClick={() => setSelectedTime(time)}
-                      className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 ${!isEditingView ? 'active:scale-95' : ''} ${
-                        isOccupied
-                          ? "bg-secondary/50 text-muted-foreground/40 cursor-not-allowed line-through"
-                          : isSelected
-                          ? "bg-charcoal text-cream shadow-md"
-                          : "bg-card text-foreground shadow-sm hover:shadow-md"
-                      }`}
-                    >
-                      {time}
-                    </button>
-                  );
-                })}
+              
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 min-h-[200px]">
+                {/* 🚀 AQUI EVALUAMOS SI ESTÁ CARGANDO */}
+                {isFetchingSlots ? (
+                  <div className="col-span-3 sm:col-span-4 flex flex-col items-center justify-center py-12 opacity-80 animate-in fade-in zoom-in duration-300">
+                    <div className="w-10 h-10 border-2 border-sand-dark/20 border-t-sand-dark rounded-full animate-spin mb-4"></div>
+                    <p className="text-sm font-sans tracking-wide text-sand-dark animate-pulse">Buscando huecos libres...</p>
+                  </div>
+                ) : (
+                  ALL_SLOTS.map((time) => {
+                    const isOccupied = occupiedSlots.has(time);
+                    const isSelected = selectedTime === time;
+                    return (
+                      <button
+                        key={time}
+                        disabled={isOccupied || isEditingView}
+                        onClick={() => setSelectedTime(time)}
+                        className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 ${!isEditingView ? 'active:scale-95' : ''} ${
+                          isOccupied
+                            ? "bg-secondary/50 text-muted-foreground/40 cursor-not-allowed line-through"
+                            : isSelected
+                            ? "bg-charcoal text-cream shadow-md"
+                            : "bg-card text-foreground shadow-sm hover:shadow-md"
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </ScrollReveal>
           )}
@@ -629,14 +640,15 @@ const Reservation = () => {
             <div className="flex gap-3 mt-8">
               {step > 1 && (
                 <Button variant="outline" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={isEditingView}
+                  disabled={isEditingView || (step === 3 && isFetchingSlots)} // 🚀 Bloqueamos atrás si está cargando
                   onClick={() => setStep((step - 1) as Step)}>
                   <ArrowLeft size={16} /> {t("booking.back")}
                 </Button>
               )}
               {step < totalSteps ? (
                 <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={!canAdvance() || isEditingView} onClick={() => setStep((step + 1) as Step)}>
+                  disabled={!canAdvance() || isEditingView || (step === 2 && isFetchingSlots)} // 🚀 Bloqueamos siguiente si está cargando el paso 2 a 3
+                  onClick={() => setStep((step + 1) as Step)}>
                   {t("booking.next")} <ArrowRight size={16} />
                 </Button>
               ) : (

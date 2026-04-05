@@ -53,20 +53,21 @@ export async function createBooking(data: BookingPayload) {
   
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
 
-  // 1. BUSCAR INFO DEL SERVICIO (Lo necesitamos ahora para saber las Fases)
+  // 1. BUSCAR INFO DEL SERVICIO
   const serviceDoc = await db.collection('services').doc(data.service_id).get();
   const serviceInfo = serviceDoc.exists ? serviceDoc.data() : null;
   const finalServiceName = serviceInfo?.name || "Servicio de Salón";
 
-  // 2. VERIFICACIÓN DE ÚLTIMO SEGUNDO (¡AHORA ES INTELIGENTE!)
+  // 2. VERIFICACIÓN DE ÚLTIMO SEGUNDO
   const { busy } = await getBusySlots({ 
     start: dayjs.tz(`${data.date}T00:00:00`, "Europe/Madrid").toDate(), 
     end: dayjs.tz(`${data.date}T23:59:59`, "Europe/Madrid").toDate() 
   });
 
-  const p1Min = Number(serviceInfo?.phase1Min || serviceInfo?.durationMin || serviceInfo?.duration_min || 0);
-  const p2Min = Number(serviceInfo?.phase2Min || 0);
-  const p3Min = Number(serviceInfo?.phase3Min || 0);
+  // 🚀 EL FIX ESTÁ AQUÍ: Firebase usa snake_case (phase1_min)
+  const p1Min = Number(serviceInfo?.phase1_min || serviceInfo?.phase1Min || serviceInfo?.duration_min || serviceInfo?.durationMin || 0);
+  const p2Min = Number(serviceInfo?.phase2_min || serviceInfo?.phase2Min || 0);
+  const p3Min = Number(serviceInfo?.phase3_min || serviceInfo?.phase3Min || 0);
 
   const p1Start = startDate.valueOf();
   const p1End = startDate.add(p1Min, 'minute').valueOf();
@@ -82,12 +83,10 @@ export async function createBooking(data: BookingPayload) {
     const isWorking = slot.isAppointment === true;
 
     if (!isWorking) {
-      // Si Ana NO está (Médico, Vacaciones), no puede haber solapamiento en ninguna fase
       if (isOverlap(p1Start, p1End, bStart, bEnd)) conflict = true;
       if (p2Min > 0 && isOverlap(p1End, p2End, bStart, bEnd)) conflict = true;
       if (p3Min > 0 && isOverlap(p2End, p3End, bStart, bEnd)) conflict = true;
     } else {
-      // Si Ana SÍ está (CITA manual), el tiempo de espera (Fase 2) se salva
       if (isOverlap(p1Start, p1End, bStart, bEnd)) conflict = true;
       if (p3Min > 0 && isOverlap(p2End, p3End, bStart, bEnd)) conflict = true;
     }
@@ -113,9 +112,9 @@ export async function createBooking(data: BookingPayload) {
       status: 'confirmed',
       createdAt: new Date().toISOString(),
       lang: userLang,
-      phase1Min: serviceInfo?.phase1Min || 0,
-      phase2Min: serviceInfo?.phase2Min || 0,
-      phase3Min: serviceInfo?.phase3Min || 0,
+      phase1_min: p1Min,
+      phase2_min: p2Min,
+      phase3_min: p3Min,
     });
   });
 
@@ -129,14 +128,13 @@ export async function createBooking(data: BookingPayload) {
       customerName: data.client_name,
       customerPhone: data.client_phone,
       notes: `Cliente: ${data.client_name}\nTel: ${data.client_phone}\nEmail: ${data.client_email}\nIdioma: ${userLang.toUpperCase()}\nNotas: ${data.notes || ''}`,
-      phase1Min: serviceInfo?.phase1Min,
-      phase2Min: serviceInfo?.phase2Min,
-      phase3Min: serviceInfo?.phase3Min,
+      phase1Min: p1Min,
+      phase2Min: p2Min,
+      phase3Min: p3Min,
     });
 
     await bookingRef.update({ googleEventId: gcal.eventId });
 
-    // Preparar datos para el email
     const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
     const formattedDate = startDate.locale(userLang).format('dddd, D [de] MMMM YYYY'); 
     const formattedTime = startDate.format('HH:mm');
@@ -147,7 +145,6 @@ export async function createBooking(data: BookingPayload) {
       eu: `Hitzordua Baieztatuta: ${finalServiceName} - AG Beauty Salon`
     };
 
-    // Enviar Email Premium Multi-idioma
     await resend.emails.send({
       from: 'AG Beauty Salon <onboarding@resend.dev>', 
       to: data.client_email,
@@ -185,7 +182,7 @@ export async function cancelBookingByToken(token: string) {
 }
 
 // ============================================================================
-// ✉️ TEMPLATE DE EMAIL: Premium Awwwards & Multi-idioma
+// ✉️ TEMPLATE DE EMAIL
 // ============================================================================
 function getConfirmationEmailHtml(name: string, service: string, date: string, time: string, cancelUrl: string, lang: string): string {
   const t = {
