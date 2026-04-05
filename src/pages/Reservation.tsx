@@ -144,10 +144,12 @@ const Reservation = () => {
         if (!response.ok) throw new Error("Fallo en la red");
         
         const data = await response.json();
+        
+        // 🚀 EL FIX ESTÁ AQUÍ: Añadido slot.start y slot.end
         const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => ({
           ...slot,
-          start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
-          end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
+          start_time: (slot.startTime || slot.start_time || slot.start || "").split('T')[1]?.substring(0, 5) || "00:00",
+          end_time: (slot.endTime || slot.end_time || slot.end || "").split('T')[1]?.substring(0, 5) || "23:59",
         }));
 
         setDayBookings(formattedBookings);
@@ -163,7 +165,6 @@ const Reservation = () => {
   const currentStaff = (settings as any)?.staff || defaultStaff;
 
   const { occupiedSlots } = useMemo(() => {
-    // 🚀 MAGIA: Si está cargando o no hay fecha, DEVOLVEMOS TODOS LOS HUECOS COMO OCUPADOS
     if (!service || !selectedDate || isFetchingSlots) {
       return { occupiedSlots: new Set<string>(ALL_SLOTS), slotAssignments: {} };
     }
@@ -253,8 +254,8 @@ const Reservation = () => {
         const freshData = await refresh.json();
         setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
           ...slot,
-          start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
-          end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
+          start_time: (slot.startTime || slot.start_time || slot.start || "").split('T')[1]?.substring(0, 5) || "00:00",
+          end_time: (slot.endTime || slot.end_time || slot.end || "").split('T')[1]?.substring(0, 5) || "23:59",
         })));
         setIsSubmitting(false);
         return; 

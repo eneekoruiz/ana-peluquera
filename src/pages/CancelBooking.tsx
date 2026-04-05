@@ -10,14 +10,25 @@ const CancelBooking = () => {
   useEffect(() => {
     const performCancellation = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+        // 🚀 FIX 1: Apuntamos siempre a tu servidor real en Vercel
+        const API_URL = import.meta.env.VITE_API_URL || "https://ag-beauty-backend.vercel.app/api";
+        
         const response = await fetch(`${API_URL}/bookings/cancel/${token}`, {
-          method: "DELETE",
+          method: "DELETE", // ⚠️ Nota: Si tu backend usa POST para esto, cambia "DELETE" por "POST"
         });
 
-        if (response.ok) setStatus("success");
-        else setStatus("error");
+        // 🚀 FIX 2: Leemos la respuesta exacta de Firebase
+        const data = await response.json().catch(() => null);
+
+        // Si la conexión fue bien Y el backend dice "success: true"
+        if (response.ok && (!data || data.success !== false)) {
+          setStatus("success");
+        } else {
+          console.error("Error del servidor:", data?.message);
+          setStatus("error");
+        }
       } catch (err) {
+        console.error("Error de red:", err);
         setStatus("error");
       }
     };
