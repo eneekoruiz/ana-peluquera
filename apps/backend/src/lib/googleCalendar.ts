@@ -1,6 +1,4 @@
 import { google } from "googleapis";
-import { readFileSync } from "fs"; 
-import path from "path"; 
 import { db } from "./firebaseAdmin"; 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -13,7 +11,7 @@ const TZ = "Europe/Madrid";
 const SYSTEM_MARKER = "ag-beauty-salon";
 
 export interface CalendarDateRange { start: Date | string; end: Date | string; }
-export interface BusyInterval { start: dayjs.Dayjs; end: dayjs.Dayjs; sourceEventId?: string; isAppointment?: boolean; }
+export interface BusyInterval { start: dayjs.Dayjs; end: dayjs.Dayjs; sourceEventId?: string; isAppointment?: boolean; isTotalBlock?: boolean; }
 export interface CreateAppointmentRequest { 
   start: Date | string; 
   end: Date | string; 
@@ -24,48 +22,39 @@ export interface CreateAppointmentRequest {
   phase1Min?: number; 
   phase2Min?: number; 
   phase3Min?: number; 
+  customerName?: string;
+  customerPhone?: string;
 }
 export interface Worker { id: string; name: string; daysOfWeek: number[]; skills: string[]; schedule?: any[]; }
 export interface VacationRange { start: string; end: string; }
-export interface AdminSettings { workers: Worker[]; bookingsEnabled: boolean; todayClosed: boolean; todayClosedDate: string | null; vacationRanges: VacationRange[]; }
+export interface AdminSettings { workers: Worker[]; bookingsEnabled: boolean; todayClosed: boolean; todayClosedDate: string | null; vacationRanges: VacationRange[]; google_refresh_token?: string; }
 
-let calendarClient: ReturnType<typeof google.calendar> | null = null;
-let jwtClient: any | null = null;
+// 🚀 NUEVO SISTEMA OAUTH2 (SaaS Permanente)
+async function getOAuth2Client() {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
 
-async function getAdminSettings(): Promise<AdminSettings> {
-  const defaultSettings: AdminSettings = { workers: [{ id: "ana_id", name: "Ana (Responsable)", daysOfWeek: [1, 2, 3, 4, 5, 6], skills: ["peluqueria", "masajes"] }], bookingsEnabled: true, todayClosed: false, todayClosedDate: null, vacationRanges: [] };
-  try {
-    const docRef = await db.collection("admin").doc("settings").get();
-    if (!docRef.exists) return defaultSettings;
-    const data = docRef.data() || {};
-    const workers = (data.staff || []).map((w: any) => ({ 
-      id: w.id, 
-      name: w.name || "Sin Nombre", 
-      daysOfWeek: w.workingDays || [], 
-      skills: w.skills || [],
-      schedule: w.schedule // 🚀 Soporte para el nuevo sistema de turnos
-    }));
-    return { workers: workers.length > 0 ? workers : defaultSettings.workers, bookingsEnabled: data.bookings_enabled !== false, todayClosed: !!data.today_closed, todayClosedDate: data.today_closed_date || null, vacationRanges: data.vacation_ranges || [] };
-  } catch (error) { return defaultSettings; }
+  // Leemos la llave maestra de Ana desde Firebase
+  const doc = await db.collection("admin").doc("settings").get();
+  const data = doc.data();
+  const refreshToken = data?.google_refresh_token;
+
+  if (!refreshToken) {
+    throw new Error("No hay cuenta de Google vinculada. Ana debe iniciar sesión en el panel de administración.");
+  }
+
+  // Le damos la llave al cliente de Google para que actúe en nombre de Ana
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  return oauth2Client;
 }
 
-function getGoogleCalendarId(): string { return process.env.GOOGLE_CALENDAR_ID || "primary"; }
-
-function getGoogleAuthClient(): any {
-  if (jwtClient) return jwtClient;
-  const jsonPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!jsonPath) throw new Error("Faltan credenciales de Google.");
-  try {
-      let creds = jsonPath.trim().startsWith('{') ? JSON.parse(jsonPath) : JSON.parse(readFileSync(path.resolve(process.cwd(), jsonPath), "utf8"));
-      jwtClient = new google.auth.GoogleAuth({ credentials: { client_email: creds.client_email, private_key: creds.private_key }, scopes: ["https://www.googleapis.com/auth/calendar"] });
-      return jwtClient;
-  } catch (error) { throw new Error("Error leyendo JSON de Google."); }
-}
-
-function getCalendar(): ReturnType<typeof google.calendar> {
-  if (calendarClient) return calendarClient;
-  calendarClient = google.calendar({ version: "v3", auth: getGoogleAuthClient() });
-  return calendarClient;
+// 🚀 Ahora obtener el calendario es una función asíncrona
+async function getCalendar() {
+  const auth = await getOAuth2Client();
+  return google.calendar({ version: "v3", auth });
 }
 
 function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end: dayjs.Dayjs } | null {
@@ -83,10 +72,13 @@ function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end
 
 function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number): BusyInterval[] {
     if (intervals.length === 0 || maxCapacity === 0) return [];
-    const events: { time: number, type: 'start' | 'end', isAppointment?: boolean }[] = [];
+    
+    const events: { time: number, type: 'start' | 'end', isAppointment?: boolean, weight: number }[] = [];
     for (const interval of intervals) {
-        events.push({ time: interval.start.valueOf(), type: 'start', isAppointment: interval.isAppointment });
-        events.push({ time: interval.end.valueOf(), type: 'end', isAppointment: interval.isAppointment });
+        // Si es un Bloqueo Total (ej. Médico), pesa como toda la capacidad. Si es CITA, pesa 1.
+        const weight = interval.isTotalBlock ? maxCapacity : 1;
+        events.push({ time: interval.start.valueOf(), type: 'start', isAppointment: interval.isAppointment, weight });
+        events.push({ time: interval.end.valueOf(), type: 'end', isAppointment: interval.isAppointment, weight });
     }
     events.sort((a, b) => a.time - b.time || (a.type === 'end' ? -1 : 1));
 
@@ -95,13 +87,13 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
 
     for (const event of events) {
         if (event.type === 'start') {
-            active++;
+            active += event.weight;
             if (active >= maxCapacity && fullPeriodStart === null) {
               fullPeriodStart = event.time;
               currentIsAppt = event.isAppointment || false;
             }
         } else {
-            if (active >= maxCapacity && fullPeriodStart !== null && (active - 1) < maxCapacity) {
+            if (active >= maxCapacity && fullPeriodStart !== null && (active - event.weight) < maxCapacity) {
                 busyPeriods.push({ 
                   start: dayjs(fullPeriodStart).tz(TZ), 
                   end: dayjs(event.time).tz(TZ),
@@ -109,7 +101,7 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
                 });
                 fullPeriodStart = null;
             }
-            active--;
+            active -= event.weight;
         }
     }
     if (busyPeriods.length === 0) return [];
@@ -124,7 +116,9 @@ function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number)
 }
 
 export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[], rawEventIds: string[] }> {
-  const calendar = getCalendar();
+  // 🚀 AWAIT CRÍTICO para el nuevo sistema
+  const calendar = await getCalendar();
+  
   const settingsDoc = await db.collection("admin").doc("settings").get();
   const settingsData = settingsDoc.data() || {};
   
@@ -133,7 +127,8 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     bookingsEnabled: settingsData.bookings_enabled !== false,
     todayClosed: !!settingsData.today_closed,
     todayClosedDate: settingsData.today_closed_date || null,
-    vacationRanges: settingsData.vacation_ranges || []
+    vacationRanges: settingsData.vacation_ranges || [],
+    google_refresh_token: settingsData.google_refresh_token
   };
 
   const intervalsByDay: Record<string, BusyInterval[]> = {};
@@ -146,7 +141,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   }
 
   const res = await calendar.events.list({
-    calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
+    calendarId: "primary", // 🚀 Ahora usamos siempre el calendario principal del usuario logueado
     timeMin: dayjs(dateRange.start).toISOString(),
     timeMax: dayjs(dateRange.end).toISOString(),
     singleEvents: true,
@@ -173,21 +168,22 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       const dKey = eventCurr.format('YYYY-MM-DD');
       if (intervalsByDay[dKey]) {
         
-        // 🚀 EL FIX MAGISTRAL: "Recortamos" los eventos largos para que encajen en el día actual
+        // Recortamos los eventos largos para que encajen en el día actual
         const dayStart = eventCurr.startOf('day');
         const dayEnd = eventCurr.endOf('day');
         const actualStart = parsed.start.isAfter(dayStart) ? parsed.start : dayStart;
         const actualEnd = parsed.end.isBefore(dayEnd) ? parsed.end : dayEnd;
 
         if (isOurAppt && priv.phase1Min && priv.phase3Min) {
-            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true });
-            intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true });
+            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true, isTotalBlock: false });
+            intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true, isTotalBlock: false });
         } else {
             intervalsByDay[dKey].push({ 
                 start: actualStart, 
                 end: actualEnd, 
                 isAppointment: isAppointment, 
-                sourceEventId: (event.id as string) ?? undefined 
+                sourceEventId: (event.id as string) ?? undefined,
+                isTotalBlock: !isAppointment // 🚀 Si no es una CITA, bloquea a todo el mundo (Ej: Médico)
             });
         }
       }
@@ -199,7 +195,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   for (const [dateStr, intervals] of Object.entries(intervalsByDay)) {
     const day = dayjs.tz(dateStr, TZ);
     
-    // 🚀 FIX: Compatibilidad con el nuevo sistema de turnos
+    // Compatibilidad con el nuevo sistema de turnos
     const workers = settings.workers.filter((w) => {
       if (w.schedule) {
         const todaySched = w.schedule.find((s:any) => s.dayId === day.day());
@@ -209,7 +205,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     }).length;
     
     if (workers === 0) {
-      finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false });
+      finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false, isTotalBlock: true });
     } else {
       finalBusy.push(...getOverlappingIntervals(intervals, workers));
     }
@@ -217,13 +213,13 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   return { busy: finalBusy, rawEventIds }; 
 }
 
-export async function createAppointment(req: CreateAppointmentRequest & { customerName?: string, customerPhone?: string }) {
-  const calendar = getCalendar();
+export async function createAppointment(req: CreateAppointmentRequest) {
+  const calendar = await getCalendar(); // 🚀 AWAIT
   const startDayjs = dayjs(req.start).tz(TZ);
   const endDayjs = dayjs(req.end).tz(TZ);
 
   const event = await calendar.events.insert({
-    calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
+    calendarId: "primary", // 🚀 primary
     requestBody: {
       summary: `[WEB] CITA ${req.serviceId.toUpperCase()} - ${req.customerName || 'Cliente'}`,
       description: req.notes || "",
@@ -241,5 +237,6 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
 }
 
 export async function cancelAppointment(eventId: string) {
-  await getCalendar().events.delete({ calendarId: process.env.GOOGLE_CALENDAR_ID || "primary", eventId });
+  const calendar = await getCalendar(); // 🚀 AWAIT
+  await calendar.events.delete({ calendarId: "primary", eventId }); // 🚀 primary
 }

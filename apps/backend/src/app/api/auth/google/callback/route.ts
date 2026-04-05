@@ -1,14 +1,13 @@
-import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
+import { google } from "googleapis";
+import { NextResponse } from "next/server";
+import { getFirebaseAdminApp } from "@/lib/firebaseAdmin";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const code = searchParams.get('code');
+  const code = searchParams.get("code");
+  const frontendUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://agpeluqueria.vercel.app";
 
-  if (!code) {
-    return NextResponse.json({ error: 'Falta el código de autorización' }, { status: 400 });
-  }
+  if (!code) return NextResponse.redirect(`${frontendUrl}/?error=NoCode`);
 
   try {
     const oauth2Client = new google.auth.OAuth2(
@@ -17,22 +16,23 @@ export async function GET(request: Request) {
       process.env.GOOGLE_REDIRECT_URI
     );
 
-    // Intercambiamos el código por los tokens
+    // Cambiamos el código por los Tokens reales
     const { tokens } = await oauth2Client.getToken(code);
-    
-    // Lo guardamos en TU estructura actual (admin/settings)
-    const db = getFirebaseAdminApp().firestore();
-    await db.collection('admin').doc('settings').set({
-      googleCalendarTokens: tokens,
-      updatedAt: new Date().toISOString()
-    }, { merge: true }); // Merge asegura que no borramos a los trabajadores ni las vacaciones
 
-    const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
-    return NextResponse.redirect(`${frontendUrl}/admin/settings?google=success`);
-    
+    // Si Google nos da un Refresh Token, lo guardamos en la caja fuerte de Firebase
+    if (tokens.refresh_token) {
+      const db = getFirebaseAdminApp().firestore();
+      await db.collection("admin").doc("settings").set(
+        { google_refresh_token: tokens.refresh_token },
+        { merge: true }
+      );
+      console.log("✅ Refresh Token de Ana guardado en Firebase");
+    }
+
+    // Devolvemos a Ana a su panel con un mensaje de éxito
+    return NextResponse.redirect(`${frontendUrl}/?google_sync=success`);
   } catch (error) {
-    console.error('❌ Error en el Callback:', error);
-    const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
-    return NextResponse.redirect(`${frontendUrl}/admin/settings?google=error`);
+    console.error("❌ Error en el callback de Google:", error);
+    return NextResponse.redirect(`${frontendUrl}/?error=GoogleSyncFailed`);
   }
 }
