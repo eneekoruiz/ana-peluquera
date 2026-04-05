@@ -170,8 +170,13 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
             intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true });
             intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true });
         } else {
-            // 🔥 EL FIX PARA QUE VERCEL COMPILE ESTÁ AQUÍ (añadido || undefined)
-            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.end, isAppointment: isAppointment, sourceEventId: event.id || undefined });
+            // 🚀 FIX VERCEL: (event.id as string) para evitar el error de 'null'
+            intervalsByDay[dKey].push({ 
+                start: parsed.start, 
+                end: parsed.end, 
+                isAppointment: isAppointment, 
+                sourceEventId: (event.id as string) ?? undefined 
+            });
         }
       }
       eventCurr = eventCurr.add(1, 'day');
@@ -212,7 +217,7 @@ export async function createAppointment(req: CreateAppointmentRequest & { custom
       } },
     },
   });
-  return { eventId: event.data.id, htmlLink: event.data.htmlLink };
+  return { eventId: (event.data.id as string), htmlLink: (event.data.htmlLink as string) };
 }
 
 export async function cancelAppointment(eventId: string) {
