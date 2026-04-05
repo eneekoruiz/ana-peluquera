@@ -13,12 +13,11 @@ import 'dayjs/locale/eu';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-dayjs.extend(customParseFormat); // Vital para que no haya desfase de 2 horas
+dayjs.extend(customParseFormat); 
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:8080';
 
-// 🚀 FIX: Tipado exacto que coincide con lo que envía el Frontend (Reservation.tsx)
 export interface BookingPayload {
   client_name: string;
   client_email: string;
@@ -49,25 +48,52 @@ export async function createBooking(data: BookingPayload) {
     ? crypto.randomUUID() 
     : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   
-  // 🚀 FIX ZONA HORARIA: Juntamos la fecha y la hora explícitamente y forzamos Madrid
   const startDate = dayjs.tz(`${data.date} ${data.start_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
   const endDate = dayjs.tz(`${data.date} ${data.end_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
   
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
 
-  // 1. VERIFICACIÓN DE ÚLTIMO SEGUNDO
+  // 1. BUSCAR INFO DEL SERVICIO (Lo necesitamos ahora para saber las Fases)
+  const serviceDoc = await db.collection('services').doc(data.service_id).get();
+  const serviceInfo = serviceDoc.exists ? serviceDoc.data() : null;
+  const finalServiceName = serviceInfo?.name || "Servicio de Salón";
+
+  // 2. VERIFICACIÓN DE ÚLTIMO SEGUNDO (¡AHORA ES INTELIGENTE!)
   const { busy } = await getBusySlots({ 
     start: dayjs.tz(`${data.date}T00:00:00`, "Europe/Madrid").toDate(), 
     end: dayjs.tz(`${data.date}T23:59:59`, "Europe/Madrid").toDate() 
   });
-  
-  const conflict = busy.some(slot => (startDate.valueOf() < slot.end.valueOf() && endDate.valueOf() > slot.start.valueOf()));
-  if (conflict) throw new Error("Este horario acaba de ser reservado. Por favor, elige otro.");
 
-  // 2. BUSCAR INFO DEL SERVICIO
-  const serviceDoc = await db.collection('services').doc(data.service_id).get();
-  const serviceInfo = serviceDoc.exists ? serviceDoc.data() : null;
-  const finalServiceName = serviceInfo?.name || "Servicio de Salón";
+  const p1Min = Number(serviceInfo?.phase1Min || serviceInfo?.durationMin || serviceInfo?.duration_min || 0);
+  const p2Min = Number(serviceInfo?.phase2Min || 0);
+  const p3Min = Number(serviceInfo?.phase3Min || 0);
+
+  const p1Start = startDate.valueOf();
+  const p1End = startDate.add(p1Min, 'minute').valueOf();
+  const p2End = startDate.add(p1Min + p2Min, 'minute').valueOf();
+  const p3End = startDate.add(p1Min + p2Min + p3Min, 'minute').valueOf();
+
+  const isOverlap = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && e1 > s2;
+
+  let conflict = false;
+  for (const slot of busy) {
+    const bStart = slot.start.valueOf();
+    const bEnd = slot.end.valueOf();
+    const isWorking = slot.isAppointment === true;
+
+    if (!isWorking) {
+      // Si Ana NO está (Médico, Vacaciones), no puede haber solapamiento en ninguna fase
+      if (isOverlap(p1Start, p1End, bStart, bEnd)) conflict = true;
+      if (p2Min > 0 && isOverlap(p1End, p2End, bStart, bEnd)) conflict = true;
+      if (p3Min > 0 && isOverlap(p2End, p3End, bStart, bEnd)) conflict = true;
+    } else {
+      // Si Ana SÍ está (CITA manual), el tiempo de espera (Fase 2) se salva
+      if (isOverlap(p1Start, p1End, bStart, bEnd)) conflict = true;
+      if (p3Min > 0 && isOverlap(p2End, p3End, bStart, bEnd)) conflict = true;
+    }
+  }
+
+  if (conflict) throw new Error("Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.");
 
   // 3. TRANSACCIÓN FIREBASE BLINDADA
   const bookingRef = db.collection('bookings').doc();
@@ -123,7 +149,7 @@ export async function createBooking(data: BookingPayload) {
 
     // Enviar Email Premium Multi-idioma
     await resend.emails.send({
-      from: 'AG Beauty Salon <onboarding@resend.dev>', // ¡Cámbialo por tu dominio real cuando salgas a producción!
+      from: 'AG Beauty Salon <onboarding@resend.dev>', 
       to: data.client_email,
       subject: subjects[userLang as keyof typeof subjects],
       html: getConfirmationEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
