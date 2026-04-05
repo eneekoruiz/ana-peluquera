@@ -25,7 +25,7 @@ export interface CreateAppointmentRequest {
   phase2Min?: number; 
   phase3Min?: number; 
 }
-export interface Worker { id: string; name: string; daysOfWeek: number[]; skills: string[]; }
+export interface Worker { id: string; name: string; daysOfWeek: number[]; skills: string[]; schedule?: any[]; }
 export interface VacationRange { start: string; end: string; }
 export interface AdminSettings { workers: Worker[]; bookingsEnabled: boolean; todayClosed: boolean; todayClosedDate: string | null; vacationRanges: VacationRange[]; }
 
@@ -38,7 +38,13 @@ async function getAdminSettings(): Promise<AdminSettings> {
     const docRef = await db.collection("admin").doc("settings").get();
     if (!docRef.exists) return defaultSettings;
     const data = docRef.data() || {};
-    const workers = (data.staff || []).map((w: any) => ({ id: w.id, name: w.name || "Sin Nombre", daysOfWeek: w.workingDays || [], skills: w.skills || [] }));
+    const workers = (data.staff || []).map((w: any) => ({ 
+      id: w.id, 
+      name: w.name || "Sin Nombre", 
+      daysOfWeek: w.workingDays || [], 
+      skills: w.skills || [],
+      schedule: w.schedule // 🚀 Soporte para el nuevo sistema de turnos
+    }));
     return { workers: workers.length > 0 ? workers : defaultSettings.workers, bookingsEnabled: data.bookings_enabled !== false, todayClosed: !!data.today_closed, todayClosedDate: data.today_closed_date || null, vacationRanges: data.vacation_ranges || [] };
   } catch (error) { return defaultSettings; }
 }
@@ -123,7 +129,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   const settingsData = settingsDoc.data() || {};
   
   const settings: AdminSettings = {
-    workers: (settingsData.staff || []).map((w: any) => ({ id: w.id, name: w.name, daysOfWeek: w.workingDays || [], skills: w.skills || [] })),
+    workers: (settingsData.staff || []).map((w: any) => ({ id: w.id, name: w.name, daysOfWeek: w.workingDays || [], skills: w.skills || [], schedule: w.schedule })),
     bookingsEnabled: settingsData.bookings_enabled !== false,
     todayClosed: !!settingsData.today_closed,
     todayClosedDate: settingsData.today_closed_date || null,
@@ -166,14 +172,20 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     while (eventCurr.valueOf() <= eventEnd.valueOf()) {
       const dKey = eventCurr.format('YYYY-MM-DD');
       if (intervalsByDay[dKey]) {
+        
+        // 🚀 EL FIX MAGISTRAL: "Recortamos" los eventos largos para que encajen en el día actual
+        const dayStart = eventCurr.startOf('day');
+        const dayEnd = eventCurr.endOf('day');
+        const actualStart = parsed.start.isAfter(dayStart) ? parsed.start : dayStart;
+        const actualEnd = parsed.end.isBefore(dayEnd) ? parsed.end : dayEnd;
+
         if (isOurAppt && priv.phase1Min && priv.phase3Min) {
             intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true });
             intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true });
         } else {
-            // 🚀 FIX VERCEL: (event.id as string) para evitar el error de 'null'
             intervalsByDay[dKey].push({ 
-                start: parsed.start, 
-                end: parsed.end, 
+                start: actualStart, 
+                end: actualEnd, 
                 isAppointment: isAppointment, 
                 sourceEventId: (event.id as string) ?? undefined 
             });
@@ -186,7 +198,15 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
   const finalBusy: BusyInterval[] = [];
   for (const [dateStr, intervals] of Object.entries(intervalsByDay)) {
     const day = dayjs.tz(dateStr, TZ);
-    const workers = settings.workers.filter((w) => w.daysOfWeek.includes(day.day())).length;
+    
+    // 🚀 FIX: Compatibilidad con el nuevo sistema de turnos
+    const workers = settings.workers.filter((w) => {
+      if (w.schedule) {
+        const todaySched = w.schedule.find((s:any) => s.dayId === day.day());
+        return todaySched && todaySched.isActive;
+      }
+      return w.daysOfWeek.includes(day.day());
+    }).length;
     
     if (workers === 0) {
       finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false });

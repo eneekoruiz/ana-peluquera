@@ -29,13 +29,23 @@ type Step = 1 | 2 | 3 | 4;
 const ALL_SLOTS = [
   "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45",
   "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45",
-  "13:00", "13:15", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15",
+  "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15",
   "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45"
 ];
 
+const DEFAULT_SCHEDULE = [
+  { dayId: 1, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
+  { dayId: 2, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
+  { dayId: 3, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
+  { dayId: 4, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
+  { dayId: 5, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
+  { dayId: 6, isActive: true, morningStart: "09:00", morningEnd: "14:00", afternoonStart: "", afternoonEnd: "" },
+  { dayId: 0, isActive: false, morningStart: "", morningEnd: "", afternoonStart: "", afternoonEnd: "" },
+];
+
 const defaultStaff: Employee[] = [
-  { id: "ana_id", name: "Ana", skills: ["peluqueria", "masajes"], workingDays: [1, 2, 3, 4, 5, 6], priority: 1 },
-  { id: "refuerzo_id", name: "Refuerzo", skills: ["peluqueria"], workingDays: [5, 6], priority: 2 }
+  { id: "ana_id", name: "Ana", skills: ["peluqueria", "masajes"], priority: 1, schedule: DEFAULT_SCHEDULE },
+  { id: "refuerzo_id", name: "Refuerzo", skills: ["peluqueria"], priority: 2, schedule: DEFAULT_SCHEDULE }
 ];
 
 const timeToMinutes = (t: string) => {

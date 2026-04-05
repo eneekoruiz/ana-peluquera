@@ -207,8 +207,8 @@ const AdminDashboard = () => {
   const hasGoogleCalendar = !!(settings as any)?.googleCalendarTokens;
 
   const handleConnectGoogle = () => {
-    // 🚀 FIX: Aseguramos que tire siempre de la variable de entorno real
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || "https://TU-BACKEND-REAL.onrender.com"; 
+    // 🚀 FIX: Esta es TU URL real del backend, sacada de tus capturas
+    const backendUrl = "https://ag-beauty-backend.vercel.app"; 
     window.location.href = `${backendUrl}/api/auth/google`;
   };
 
