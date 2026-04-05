@@ -53,18 +53,15 @@ export async function createBooking(data: BookingPayload) {
   
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
 
-  // 1. BUSCAR INFO DEL SERVICIO
   const serviceDoc = await db.collection('services').doc(data.service_id).get();
   const serviceInfo = serviceDoc.exists ? serviceDoc.data() : null;
   const finalServiceName = serviceInfo?.name || "Servicio de Salón";
 
-  // 2. VERIFICACIÓN DE ÚLTIMO SEGUNDO
   const { busy } = await getBusySlots({ 
     start: dayjs.tz(`${data.date}T00:00:00`, "Europe/Madrid").toDate(), 
     end: dayjs.tz(`${data.date}T23:59:59`, "Europe/Madrid").toDate() 
   });
 
-  // 🚀 EL FIX ESTÁ AQUÍ: Firebase usa snake_case (phase1_min)
   const p1Min = Number(serviceInfo?.phase1_min || serviceInfo?.phase1Min || serviceInfo?.duration_min || serviceInfo?.durationMin || 0);
   const p2Min = Number(serviceInfo?.phase2_min || serviceInfo?.phase2Min || 0);
   const p3Min = Number(serviceInfo?.phase3_min || serviceInfo?.phase3Min || 0);
@@ -94,7 +91,6 @@ export async function createBooking(data: BookingPayload) {
 
   if (conflict) throw new Error("Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.");
 
-  // 3. TRANSACCIÓN FIREBASE BLINDADA
   const bookingRef = db.collection('bookings').doc();
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(
@@ -109,8 +105,10 @@ export async function createBooking(data: BookingPayload) {
       ...data,
       id: bookingRef.id,
       cancelToken,
-      status: 'confirmed',
-      createdAt: new Date().toISOString(),
+      // 🚀 EL FIX ESTÁ AQUÍ ABAJO: Nombres clásicos para que la web los encuentre
+      status: 'pending', 
+      created_at: new Date().toISOString(), 
+      duration_min: p1Min + p2Min + p3Min,
       lang: userLang,
       phase1_min: p1Min,
       phase2_min: p2Min,
@@ -118,7 +116,6 @@ export async function createBooking(data: BookingPayload) {
     });
   });
 
-  // 4. SINCRONIZACIÓN CON GOOGLE + EMAIL
   try {
     const gcal = await createAppointment({
       start: startDate.toDate(),
@@ -164,7 +161,12 @@ export async function createBooking(data: BookingPayload) {
 export async function cancelBookingByToken(token: string) {
   try {
     const db = getFirebaseAdminApp().firestore();
-    const snapshot = await db.collection('bookings').where('cancelToken', '==', token).where('status', '==', 'confirmed').limit(1).get();
+    // 🚀 FIX: Le decimos que busque tanto pending como confirmed por seguridad
+    const snapshot = await db.collection('bookings')
+      .where('cancelToken', '==', token)
+      .where('status', 'in', ['pending', 'confirmed'])
+      .limit(1).get();
+      
     if (snapshot.empty) throw new Error('El enlace de cancelación ha caducado o no existe.');
     
     const doc = snapshot.docs[0];
@@ -195,7 +197,6 @@ function getConfirmationEmailHtml(name: string, service: string, date: string, t
   return `
   <!DOCTYPE html>
   <html>
-  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
   <body style="margin: 0; padding: 0; background-color: #FDFDFD; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
       <tr>
