@@ -1,46 +1,118 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react"; // 🚀 Añadido AlertTriangle
+import { 
+  CheckCircle2, 
+  XCircle, 
+  Loader2, 
+  AlertTriangle, 
+  CalendarClock, 
+  Phone, 
+  MessageCircle,
+  ArrowLeft
+} from "lucide-react";
+
+// 🚀 Añade aquí el número de Ana (con el código de país, ej: 34 para España)
+const SALON_PHONE = "34600000000"; 
 
 const CancelBooking = () => {
   const { token } = useParams();
-  // 🚀 FIX: El estado inicial ahora es "confirm" (esperando a que el usuario pulse el botón)
-  const [status, setStatus] = useState<"confirm" | "loading" | "success" | "error">("confirm");
+  
+  // 🚀 Nuevos estados para navegar por el menú
+  const [view, setView] = useState<"menu" | "confirm_cancel" | "edit_info" | "loading" | "success" | "error">("menu");
 
-  // 🚀 FIX: Hemos sacado la lógica del useEffect. Ahora solo se ejecuta al hacer clic.
   const handleConfirmCancel = async () => {
     if (!token) return;
-    setStatus("loading");
+    setView("loading");
 
     try {
       const API_URL = import.meta.env.VITE_API_URL || "https://ag-beauty-backend.vercel.app/api";
       
       const response = await fetch(`${API_URL}/bookings/cancel/${token}`, {
-        method: "DELETE", // ⚠️ Asegúrate de que tu backend espera un DELETE (o cámbialo a POST si es lo que usas)
+        method: "DELETE", 
       });
 
       const data = await response.json().catch(() => null);
 
       if (response.ok && (!data || data.success !== false)) {
-        setStatus("success");
+        setView("success");
       } else {
         console.error("Error del servidor:", data?.message);
-        setStatus("error");
+        setView("error");
       }
     } catch (err) {
       console.error("Error de red:", err);
-      setStatus("error");
+      setView("error");
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-warm-white px-6">
-      <div className="max-w-md w-full bg-card p-8 rounded-2xl shadow-sm text-center">
+    <main className="min-h-screen flex items-center justify-center bg-warm-white px-6 py-12">
+      <div className="max-w-md w-full bg-card p-8 rounded-2xl shadow-sm text-center transition-all duration-300">
         
-        {/* 🛡️ NUEVO: PANTALLA DE CONFIRMACIÓN (El escudo anti-bots) */}
-        {status === "confirm" && (
+        {/* 1️⃣ EL MENÚ PRINCIPAL */}
+        {view === "menu" && (
           <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="w-16 h-16 bg-sand-light rounded-full flex items-center justify-center mx-auto">
+              <CalendarClock className="text-sand-dark w-8 h-8" />
+            </div>
+            <h1 className="font-serif text-2xl text-foreground">Gestionar Cita</h1>
+            <p className="text-muted-foreground text-sm">
+              ¿Qué necesitas hacer con tu reserva en AG Beauty?
+            </p>
+            <div className="flex flex-col gap-3 mt-6">
+              <Button 
+                variant="hero" 
+                className="w-full h-12"
+                onClick={() => setView("edit_info")}
+              >
+                Modificar fecha u hora
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full h-12 text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => setView("confirm_cancel")}
+              >
+                Cancelar la cita
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 2️⃣ PANTALLA DE MODIFICAR (Deriva a contacto manual) */}
+        {view === "edit_info" && (
+          <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+            <h1 className="font-serif text-2xl text-foreground">Modificar Cita</h1>
+            <p className="text-muted-foreground text-sm text-left">
+              Para garantizar que el tiempo de tu servicio se ajusta perfectamente a la agenda, las modificaciones de citas las gestionamos de forma personalizada.
+              <br/><br/>
+              Por favor, ponte en contacto con nosotras y buscaremos el mejor hueco para ti:
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <Button variant="outline" className="w-full h-12 gap-2" asChild>
+                <a href={`https://wa.me/${SALON_PHONE}`} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="w-5 h-5 text-green-600" />
+                  Escribir por WhatsApp
+                </a>
+              </Button>
+              <Button variant="outline" className="w-full h-12 gap-2" asChild>
+                <a href={`tel:+${SALON_PHONE}`}>
+                  <Phone className="w-5 h-5 text-sand-dark" />
+                  Llamar al salón
+                </a>
+              </Button>
+            </div>
+
+            <Button variant="ghost" className="mt-4 text-muted-foreground" onClick={() => setView("menu")}>
+              <ArrowLeft className="w-4 h-4 mr-2" /> Volver atrás
+            </Button>
+          </div>
+        )}
+
+        {/* 3️⃣ PANTALLA DE CONFIRMAR CANCELACIÓN (El Escudo) */}
+        {view === "confirm_cancel" && (
+          <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
             <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
               <AlertTriangle className="text-amber-500 w-10 h-10" />
             </div>
@@ -56,22 +128,22 @@ const CancelBooking = () => {
               >
                 Sí, cancelar mi cita
               </Button>
-              <Button variant="outline" className="w-full h-12" asChild>
-                <Link to="/">No, mantenerla</Link>
+              <Button variant="outline" className="w-full h-12" onClick={() => setView("menu")}>
+                No, mantenerla
               </Button>
             </div>
           </div>
         )}
 
-        {/* 👇 A PARTIR DE AQUÍ ES EXACTAMENTE TU CÓDIGO ORIGINAL 👇 */}
-        {status === "loading" && (
+        {/* 4️⃣ ESTADOS DE CARGA Y RESULTADO */}
+        {view === "loading" && (
           <div className="space-y-4">
             <Loader2 className="w-12 h-12 animate-spin mx-auto text-sand-dark" />
             <h1 className="font-serif text-2xl">Cancelando tu cita...</h1>
           </div>
         )}
 
-        {status === "success" && (
+        {view === "success" && (
           <div className="space-y-6 animate-in fade-in zoom-in duration-500">
             <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="text-green-600 w-10 h-10" />
@@ -84,7 +156,7 @@ const CancelBooking = () => {
           </div>
         )}
 
-        {status === "error" && (
+        {view === "error" && (
           <div className="space-y-6">
             <XCircle className="text-red-500 w-16 h-16 mx-auto" />
             <h1 className="font-serif text-2xl">Algo ha fallado</h1>
