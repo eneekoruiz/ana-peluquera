@@ -241,6 +241,10 @@ const Reservation = () => {
         start_time: selectedTime, 
         end_time: endTimeStr, 
         lang: lang,
+        // 🔥 ESTO ES LO QUE FALTABA: Mandar el sándwich al backend
+        phase1Min: service.phase1_min || service.phase1Min || 0,
+        phase2Min: service.phase2_min || service.phase2Min || 0,
+        phase3Min: service.phase3_min || service.phase3Min || 0
       };
 
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
