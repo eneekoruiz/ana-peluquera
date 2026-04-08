@@ -8,6 +8,23 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { toast } from "sonner";
 
+const QUERY_TIMEOUT_MS = 10000;
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then((value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+};
+
 export interface VacationRange {
   start: string;
   end: string;
@@ -26,7 +43,7 @@ export const useAdminSettings = () => {
   return useQuery({
     queryKey: ["admin_settings"],
     queryFn: async () => {
-      const snap = await getDoc(SETTINGS_DOC_REF);
+      const snap = await withTimeout(getDoc(SETTINGS_DOC_REF), QUERY_TIMEOUT_MS, "Timeout cargando ajustes");
       
       if (!snap.exists()) {
         return {
@@ -49,6 +66,7 @@ export const useAdminSettings = () => {
       
       return data as AdminSettings;
     },
+    retry: 1,
   });
 };
 

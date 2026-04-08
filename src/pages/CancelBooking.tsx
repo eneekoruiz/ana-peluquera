@@ -12,8 +12,8 @@ import {
   ArrowLeft
 } from "lucide-react";
 
-// 🚀 Añade aquí el número de Ana (con el código de país, ej: 34 para España)
-const SALON_PHONE = "34600000000"; 
+const SALON_PHONE = "34843673595";
+const PERSONAL_PHONE = "34645006964";
 
 const CancelBooking = () => {
   const { token } = useParams();
@@ -91,7 +91,7 @@ const CancelBooking = () => {
             
             <div className="flex flex-col gap-3">
               <Button variant="outline" className="w-full h-12 gap-2" asChild>
-                <a href={`https://wa.me/${SALON_PHONE}`} target="_blank" rel="noopener noreferrer">
+                <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
                   <MessageCircle className="w-5 h-5 text-green-600" />
                   Escribir por WhatsApp
                 </a>

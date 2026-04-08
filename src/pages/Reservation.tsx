@@ -68,6 +68,8 @@ const getLocalDateStr = (d: Date = new Date()) => {
 };
 
 const Reservation = () => {
+  const SALON_PHONE = import.meta.env.VITE_SALON_PHONE || "34843673595";
+  const PERSONAL_PHONE = import.meta.env.VITE_PERSONAL_PHONE || "34645006964";
   const { isEditingView } = useAuth(); 
   const { lang, t } = useLanguage();
   const { data: dbServices = [], isLoading: loadingServices } = useServices();
@@ -95,7 +97,11 @@ const Reservation = () => {
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitTimedOut, setSubmitTimedOut] = useState(false);
   const [isFetchingSlots, setIsFetchingSlots] = useState(false);
+  const [slotsLoadingMessage, setSlotsLoadingMessage] = useState("Cargando disponibilidad...");
+  const [slotsFetchTimedOut, setSlotsFetchTimedOut] = useState(false);
+  const [slotsRetryTick, setSlotsRetryTick] = useState(0);
 
   const todayStr = getLocalDateStr();
   const dateStr = selectedDate ? getLocalDateStr(selectedDate) : "";
@@ -134,13 +140,36 @@ const Reservation = () => {
   useEffect(() => {
     if (!dateStr) {
       setDayBookings([]);
+      setSlotsFetchTimedOut(false);
+      setSlotsLoadingMessage("Cargando disponibilidad...");
       return;
     }
+
+    const controller = new AbortController();
+    let isMounted = true;
+    let didTimeoutAbort = false;
+
+    const slowTimer = window.setTimeout(() => {
+      if (isMounted) {
+        setSlotsLoadingMessage("Sincronizando con el calendario de Ana...");
+      }
+    }, 4000);
+
+    const timeoutTimer = window.setTimeout(() => {
+      didTimeoutAbort = true;
+      controller.abort();
+    }, 10000);
+
     const fetchBookings = async () => {
       setIsFetchingSlots(true);
+      setSlotsFetchTimedOut(false);
+      setSlotsLoadingMessage("Cargando disponibilidad...");
+
       try {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-        const response = await fetch(`${API_URL}/bookings?date=${dateStr}`);
+        const response = await fetch(`${API_URL}/bookings?date=${dateStr}`, {
+          signal: controller.signal,
+        });
         if (!response.ok) throw new Error("Fallo en la red");
         
         const data = await response.json();
@@ -160,15 +189,35 @@ const Reservation = () => {
           return { ...slot, start_time: st, end_time: et };
         });
 
-        setDayBookings(formattedBookings);
+        if (isMounted) {
+          setDayBookings(formattedBookings);
+        }
       } catch (error) {
+        if ((error as DOMException)?.name === "AbortError") {
+          if (isMounted && didTimeoutAbort) {
+            setSlotsFetchTimedOut(true);
+          }
+          return;
+        }
         console.error("Error cargando disponibilidad:", error);
       } finally {
-        setIsFetchingSlots(false);
+        window.clearTimeout(slowTimer);
+        window.clearTimeout(timeoutTimer);
+        if (isMounted) {
+          setIsFetchingSlots(false);
+        }
       }
     };
+
     fetchBookings();
-  }, [dateStr, submitted]);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(timeoutTimer);
+      controller.abort();
+    };
+  }, [dateStr, submitted, slotsRetryTick]);
 
   const currentStaff = (settings as any)?.staff || defaultStaff;
 
@@ -225,8 +274,19 @@ const Reservation = () => {
   const handleSubmit = async () => {
     if (!service || !selectedDate || !selectedTime) return;
     setIsSubmitting(true);
+    setSubmitTimedOut(false);
     
     try {
+      const fetchWithTimeout = async (url: string, options?: RequestInit, timeoutMs = 10000) => {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      };
+
       const selectedDateStr = getLocalDateStr(selectedDate);
       const startMin = timeToMinutes(selectedTime);
       const duration = service.duration_min || service.durationMin || 0;
@@ -234,7 +294,7 @@ const Reservation = () => {
 
       const bookingPayload = {
         client_name: name.trim(),
-        client_email: email.trim() || "eruiz084@ikasle.ehu.eus", 
+        client_email: email.trim() || null,
         client_phone: phone.trim(),
         service_id: service.id,
         date: selectedDateStr,
@@ -249,34 +309,40 @@ const Reservation = () => {
 
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
       
-      const response = await fetch(`${API_URL}/bookings`, {
+      const response = await fetchWithTimeout(`${API_URL}/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingPayload)
       });
 
-      const responseData = await response.json();
+      const responseData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         toast.error("Horario no disponible", {
           description: responseData.error || "Ese horario acaba de ser ocupado. Elige otro."
         });
         setStep(3);
-        const refresh = await fetch(`${API_URL}/bookings?date=${selectedDateStr}`);
-        const freshData = await refresh.json();
+        const refresh = await fetchWithTimeout(`${API_URL}/bookings?date=${selectedDateStr}`);
+        const freshData = await refresh.json().catch(() => []);
         setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
           ...slot,
           start_time: (slot.startTime || slot.start_time || slot.start || "").split('T')[1]?.substring(0, 5) || "00:00",
           end_time: (slot.endTime || slot.end_time || slot.end || "").split('T')[1]?.substring(0, 5) || "23:59",
         })));
-        setIsSubmitting(false);
         return; 
       }
 
       toast.success("¡Cita reservada con éxito!", { description: "Te esperamos en el salón." });
       setSubmitted(true);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if ((error as DOMException)?.name === "AbortError") {
+        setSubmitTimedOut(true);
+        toast.error("La reserva está tardando demasiado", {
+          description: "La conexión se agotó. Vuelve a intentarlo en unos segundos."
+        });
+        return;
+      }
       console.error("Error al hacer la reserva:", error);
       toast.error("Error al reservar", { description: "Hubo un problema de conexión. Inténtalo de nuevo." });
     } finally {
@@ -571,7 +637,32 @@ const Reservation = () => {
               </p>
               
               <div className="min-h-[260px] flex flex-col">
-                {isDayFull ? (
+                {isFetchingSlots ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 px-6 text-center animate-in fade-in duration-300">
+                    <div className="w-10 h-10 border-2 border-sand-dark/20 border-t-sand-dark rounded-full animate-spin mb-4" />
+                    <p className="text-sm text-muted-foreground">{slotsLoadingMessage}</p>
+                  </div>
+                ) : slotsFetchTimedOut ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 px-6 text-center animate-in zoom-in-95 duration-500 bg-amber-50/40 rounded-xl border border-amber-200">
+                    <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+                      <Clock size={22} className="text-amber-700" />
+                    </div>
+                    <h3 className="font-serif text-lg text-foreground mb-2">Esta agenda va un poco lenta</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-sm">
+                      ¡Uy! Esto está tardando más de lo normal. Nuestra agenda digital está muy solicitada. Para no hacerte esperar, pulsa aquí y te agendamos directamente.
+                    </p>
+                    <div className="w-full flex flex-col gap-3 max-w-xs">
+                      <Button variant="hero" className="w-full h-11" asChild>
+                        <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
+                          <MessageCircle size={16} className="mr-2" /> Agendar por WhatsApp
+                        </a>
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setSlotsRetryTick((v) => v + 1)}>
+                        Reintentar
+                      </Button>
+                    </div>
+                  </div>
+                ) : isDayFull ? (
                   <div className="flex-1 flex flex-col items-center justify-center py-8 px-6 text-center animate-in zoom-in-95 duration-500">
                     <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4">
                        <CalendarIcon size={24} className="text-amber-600/50" />
@@ -687,6 +778,18 @@ const Reservation = () => {
                 </Button>
               )}
             </div>
+            {submitTimedOut && step === 4 && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-left animate-in fade-in duration-300">
+                <p className="text-sm text-foreground leading-relaxed mb-3">
+                  ¡Uy! Esto está tardando más de lo normal. Para no hacerte esperar, te agendamos por WhatsApp en un momento.
+                </p>
+                <Button variant="outline" className="w-full" asChild>
+                  <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle size={16} className="mr-2" /> Agendar por WhatsApp
+                  </a>
+                </Button>
+              </div>
+            )}
           </ScrollReveal>
         </div>
       </section>

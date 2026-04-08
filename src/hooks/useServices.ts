@@ -2,6 +2,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, getDoc, doc, setDoc, updateDoc, query } from "firebase/firestore";
 
+const QUERY_TIMEOUT_MS = 10000;
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise
+      .then((value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+};
+
 export interface DBService {
   id: string;
   slug: string;
@@ -30,7 +47,7 @@ export const useServices = (includeHidden = false) => {
     queryKey: ["services", includeHidden],
     queryFn: async () => {
       const q = query(collection(db, "services"));
-      const snapshot = await getDocs(q);
+      const snapshot = await withTimeout(getDocs(q), QUERY_TIMEOUT_MS, "Timeout cargando servicios");
       
       let data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -44,6 +61,7 @@ export const useServices = (includeHidden = false) => {
       data.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       return data;
     },
+    retry: 1,
   });
 };
 
@@ -65,10 +83,11 @@ export const useServicesPageContent = () => {
     queryKey: ["services_page_content"],
     queryFn: async () => {
       const ref = doc(db, "site_content", "services_page");
-      const snap = await getDoc(ref);
+      const snap = await withTimeout(getDoc(ref), QUERY_TIMEOUT_MS, "Timeout cargando contenido");
       if (!snap.exists()) return {};
       return snap.data();
-    }
+    },
+    retry: 1,
   });
 };
 

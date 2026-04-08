@@ -19,7 +19,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:8080';
 
 export interface BookingPayload {
   client_name: string;
-  client_email: string;
+  client_email?: string | null;
   client_phone: string;
   service_id: string;
   date: string;
@@ -50,6 +50,7 @@ export async function createBooking(data: BookingPayload) {
   const startDate = dayjs.tz(`${data.date} ${data.start_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
   const endDate = dayjs.tz(`${data.date} ${data.end_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
+  const safeClientEmail = data.client_email?.trim() || 'N/A';
 
   const serviceDoc = await db.collection('services').doc(data.service_id).get();
   const serviceInfo = serviceDoc.exists ? serviceDoc.data() : null;
@@ -122,7 +123,7 @@ export async function createBooking(data: BookingPayload) {
       bookingId: bookingRef.id,
       customerName: data.client_name,
       customerPhone: data.client_phone,
-      notes: `Cliente: ${data.client_name}\nTel: ${data.client_phone}\nEmail: ${data.client_email}\nIdioma: ${userLang.toUpperCase()}\nNotas: ${data.notes || ''}`,
+      notes: `Cliente: ${data.client_name}\nTel: ${data.client_phone}\nEmail: ${safeClientEmail}\nIdioma: ${userLang.toUpperCase()}\nNotas: ${data.notes || ''}`,
       phase1Min: p1Min,
       phase2Min: p2Min,
       phase3Min: p3Min,
@@ -140,12 +141,14 @@ export async function createBooking(data: BookingPayload) {
       eu: `Hitzordua Baieztatuta: ${finalServiceName} - AG Beauty Salon`
     };
 
-    await resend.emails.send({
-      from: 'AG Beauty Salon <onboarding@resend.dev>', 
-      to: data.client_email,
-      subject: subjects[userLang as keyof typeof subjects],
-      html: getProfessionalEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
-    });
+    if (data.client_email && data.client_email.trim()) {
+      await resend.emails.send({
+        from: 'AG Beauty Salon <onboarding@resend.dev>', 
+        to: data.client_email,
+        subject: subjects[userLang as keyof typeof subjects],
+        html: getProfessionalEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
+      });
+    }
 
     return { success: true, bookingId: bookingRef.id };
 

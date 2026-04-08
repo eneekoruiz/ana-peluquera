@@ -18,7 +18,7 @@ const Footer = () => {
   
   // Consumimos los mismos datos de contacto que la Home
   const displayAddress = pageContent?.contact_address || "José María Salaberría 33\n20008 Donostia";
-  const displayPhone = pageContent?.contact_phone || "943 000 000";
+  const displayPhone = pageContent?.contact_phone || "843 67 35 95";
   const displayHours = pageContent?.[`contact_hours_${lang}`] || `${t("footer.weekdays")}\n${t("footer.saturday")}\n${t("footer.sunday")}`;
 
   return (

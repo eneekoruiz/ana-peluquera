@@ -6,21 +6,86 @@ import { Resend } from 'resend';
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import { z } from 'zod';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const TZ = "Europe/Madrid";
+const SALON_PHONE = "34843673595";
+const PERSONAL_PHONE = "34645006964";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_SITE_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 60;
+
+type RateLimitEntry = {
+  count: number;
+  resetAt: number;
 };
+
+const rateStore: Map<string, RateLimitEntry> =
+  (globalThis as { __bookingsRateStore?: Map<string, RateLimitEntry> }).__bookingsRateStore ||
+  new Map<string, RateLimitEntry>();
+
+(globalThis as { __bookingsRateStore?: Map<string, RateLimitEntry> }).__bookingsRateStore = rateStore;
+
+const bookingSchema = z.object({
+  client_name: z.string().trim().min(2).max(120),
+  client_email: z.string().trim().email().optional().nullable().or(z.literal('')),
+  client_phone: z.string().trim().min(9).max(25),
+  service_id: z.string().trim().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/),
+  notes: z.string().max(1000).optional(),
+  lang: z.enum(['es', 'en', 'eu']).optional(),
+});
+
+function getClientIp(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return request.headers.get('x-real-ip') || 'unknown';
+}
+
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get('origin') || '';
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : (ALLOWED_ORIGINS[0] || '*');
+
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    Vary: 'Origin',
+  };
+}
+
+function isRateLimited(request: Request, scope: string): boolean {
+  const key = `${scope}:${getClientIp(request)}`;
+  const now = Date.now();
+  const entry = rateStore.get(key);
+
+  if (!entry || now >= entry.resetAt) {
+    rateStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  entry.count += 1;
+  rateStore.set(key, entry);
+  return entry.count > RATE_LIMIT_MAX_REQUESTS;
+}
 
 async function sendCancellationEmail(email: string, name: string, date: string, time: string, lang: string) {
   const t = {
@@ -62,10 +127,10 @@ async function sendCancellationEmail(email: string, name: string, date: string, 
                     <table width="100%" border="0" cellspacing="0" cellpadding="0">
                       <tr>
                         <td width="50%" align="center">
-                          <a href="tel:+34943000000" style="display: block; margin: 0 5px; padding: 12px; border: 1px solid #111; color: #111; text-decoration: none; font-size: 11px; letter-spacing: 1px;">${text.call}</a>
+                          <a href="tel:+${SALON_PHONE}" style="display: block; margin: 0 5px; padding: 12px; border: 1px solid #111; color: #111; text-decoration: none; font-size: 11px; letter-spacing: 1px;">${text.call}</a>
                         </td>
                         <td width="50%" align="center">
-                          <a href="https://wa.me/34943000000" style="display: block; margin: 0 5px; padding: 12px; background-color: #111; color: #fff; text-decoration: none; font-size: 11px; letter-spacing: 1px;">${text.wa}</a>
+                          <a href="https://wa.me/${PERSONAL_PHONE}" style="display: block; margin: 0 5px; padding: 12px; background-color: #111; color: #fff; text-decoration: none; font-size: 11px; letter-spacing: 1px;">${text.wa}</a>
                         </td>
                       </tr>
                     </table>
@@ -81,12 +146,19 @@ async function sendCancellationEmail(email: string, name: string, date: string, 
   } catch (e) { console.error("Error email cancelación:", e); }
 }
 
-export async function OPTIONS() { return new NextResponse(null, { status: 200, headers: corsHeaders }); }
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, { status: 200, headers: getCorsHeaders(request) });
+}
 
 export async function GET(request: Request) {
+  const headers = getCorsHeaders(request);
+  if (isRateLimited(request, 'bookings-get')) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' }, { status: 429, headers });
+  }
+
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date');
-  if (!date) return NextResponse.json({ error: 'Falta fecha' }, { status: 400, headers: corsHeaders });
+  if (!date) return NextResponse.json({ error: 'Falta fecha' }, { status: 400, headers });
 
   try {
     const db = getFirebaseAdminApp().firestore();
@@ -135,31 +207,51 @@ export async function GET(request: Request) {
         duration_min: slot.end.diff(slot.start, 'minute')
       }));
 
-    return NextResponse.json([...cleanWebBookings, ...googleBlocks], { status: 200, headers: corsHeaders });
+    return NextResponse.json([...cleanWebBookings, ...googleBlocks], { status: 200, headers });
   } catch (error: any) {
-    return NextResponse.json({ error: "Error interno" }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ error: "Error interno" }, { status: 500, headers });
   }
 }
 
 export async function POST(request: Request) {
+  const headers = getCorsHeaders(request);
+  if (isRateLimited(request, 'bookings-post')) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' }, { status: 429, headers });
+  }
+
   try {
     const body = await request.json();
-    const result = await createBooking(body);
-    return NextResponse.json(result, { status: 201, headers: corsHeaders });
-  } catch (error: any) { 
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders }); 
+    const parsed = bookingSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Datos de reserva invalidos' }, { status: 400, headers });
+    }
+
+    const result = await createBooking({
+      ...parsed.data,
+      client_email: parsed.data.client_email?.trim() || null,
+    });
+
+    return NextResponse.json(result, { status: 201, headers });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500, headers });
   }
 }
 
 export async function DELETE(request: Request) {
+  const headers = getCorsHeaders(request);
+  if (isRateLimited(request, 'bookings-delete')) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' }, { status: 429, headers });
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'Falta ID' }, { status: 400, headers: corsHeaders });
+  if (!id) return NextResponse.json({ error: 'Falta ID' }, { status: 400, headers });
   try {
     const db = getFirebaseAdminApp().firestore();
     const docRef = db.collection('bookings').doc(id);
     const docSnap = await docRef.get();
-    if (!docSnap.exists) return NextResponse.json({ error: 'No existe' }, { status: 404, headers: corsHeaders });
+    if (!docSnap.exists) return NextResponse.json({ error: 'No existe' }, { status: 404, headers });
     const data = docSnap.data() as any;
     
     if (data.client_email) {
@@ -170,6 +262,6 @@ export async function DELETE(request: Request) {
       try { await cancelAppointment(data.googleEventId); } catch (e) {}
     }
     await docRef.delete();
-    return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
-  } catch (error) { return NextResponse.json({ error: 'Error' }, { status: 500, headers: corsHeaders }); }
+    return NextResponse.json({ success: true }, { status: 200, headers });
+  } catch (error) { return NextResponse.json({ error: 'Error' }, { status: 500, headers }); }
 }

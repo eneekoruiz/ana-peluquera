@@ -124,7 +124,7 @@ export async function sendConfirmationEmail(params: ConfirmationEmailParams): Pr
                   <td style="padding: 0 40px 40px 40px;">
                     <p style="font-size: 14px; color: #555555; line-height: 1.6; margin: 0 0 30px 0;">
                       📍 José María Salaberria 33, Donostia<br>
-                      📞 943 000 000
+                      📞 843 67 35 95
                     </p>
                     <p style="font-size: 12px; color: #888888; text-align: center; margin: 0 0 15px 0;">¿Necesitas hacer un cambio?</p>
                     <table width="100%" cellpadding="0" cellspacing="0">
