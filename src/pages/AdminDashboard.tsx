@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAdminSettings, useUpdateAdminSettings } from "@/hooks/useAdminSettings";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  getGoogleOAuthUrl,
+  useCalendarWatchStatus,
+  useRegisterCalendarWatch,
+} from "@/hooks/useCalendarWatch";
 
 const getLocalDateStr = (d = new Date()) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -187,29 +192,45 @@ const AdminDashboard = () => {
   const { data: settings } = useAdminSettings();
   const updateSettings = useUpdateAdminSettings();
   const { logout } = useAuth();
+  const { data: watchStatus, isFetching: watchStatusLoading, refetch: refetchWatchStatus } = useCalendarWatchStatus();
+  const registerWatch = useRegisterCalendarWatch();
   
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     const googleStatus = searchParams.get("google");
-    if (googleStatus === "success") {
-      toast.success("¡Google Calendar conectado con éxito!");
+    const googleSyncStatus = searchParams.get("google_sync");
+
+    if (googleStatus === "success" || googleSyncStatus === "success") {
+      toast.success("Google Calendar conectado. Activa ahora el webhook para sincronización en tiempo real.");
+      void refetchWatchStatus();
       setSearchParams({});
-    } else if (googleStatus === "error") {
+    } else if (googleStatus === "error" || googleSyncStatus === "error") {
       toast.error("Hubo un problema al conectar con Google.");
       setSearchParams({});
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, refetchWatchStatus]);
 
   const todayStr = getLocalDateStr();
   const isTodayClosed = settings?.today_closed && settings?.today_closed_date === todayStr;
   
-  const hasGoogleCalendar = !!(settings as any)?.googleCalendarTokens;
+  const hasGoogleOAuth = !!watchStatus?.googleLinked;
+  const hasActiveWatch = !!watchStatus?.configured;
+  const watchExpiration = watchStatus?.expiration
+    ? new Date(watchStatus.expiration).toLocaleString("es-ES")
+    : null;
 
   const handleConnectGoogle = () => {
-    // 🚀 FIX: Esta es TU URL real del backend, sacada de tus capturas
-    const backendUrl = "https://ag-beauty-backend.vercel.app"; 
-    window.location.href = `${backendUrl}/api/auth/google`;
+    window.location.href = getGoogleOAuthUrl();
+  };
+
+  const handleEnableWatch = async () => {
+    try {
+      await registerWatch.mutateAsync();
+      await refetchWatchStatus();
+    } catch {
+      // El toast de error ya se gestiona en el hook.
+    }
   };
 
   return (
@@ -256,14 +277,14 @@ const AdminDashboard = () => {
               <button 
                 type="button" 
                 onClick={handleConnectGoogle} 
-                className={`rounded-xl p-5 border text-left hover:shadow-md transition-all ${hasGoogleCalendar ? "bg-blue-50/50 border-blue-200" : "bg-card border-border"}`}
+                className={`rounded-xl p-5 border text-left hover:shadow-md transition-all ${hasGoogleOAuth ? "bg-blue-50/50 border-blue-200" : "bg-card border-border"}`}
               >
                 <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Sincronización</p>
-                <p className={`text-base font-serif flex items-center gap-2 ${hasGoogleCalendar ? "text-blue-700" : "text-foreground"}`}>
-                  <CalendarCheck size={18} className={hasGoogleCalendar ? "text-blue-600" : "text-muted-foreground"} /> 
-                  {hasGoogleCalendar ? "Google Conectado" : "Vincular Google"}
+                <p className={`text-base font-serif flex items-center gap-2 ${hasGoogleOAuth ? "text-blue-700" : "text-foreground"}`}>
+                  <CalendarCheck size={18} className={hasGoogleOAuth ? "text-blue-600" : "text-muted-foreground"} /> 
+                  {hasGoogleOAuth ? "Google Conectado" : "Vincular Google"}
                 </p>
-                {!hasGoogleCalendar && (
+                {!hasGoogleOAuth && (
                   <p className="text-[10px] text-muted-foreground mt-1 truncate">Conecta para sincronizar</p>
                 )}
               </button>
@@ -274,6 +295,45 @@ const AdminDashboard = () => {
                   <Smartphone size={18} className="shrink-0 mt-0.5" /> 
                   Usa tu Google Calendar del móvil para ver, crear o borrar reservas.
                 </p>
+              </div>
+
+              <div className="rounded-xl p-5 border bg-card border-border text-left sm:col-span-2 lg:col-span-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Webhook Google Calendar</p>
+                    <p className={`text-base font-serif ${hasActiveWatch ? "text-green-700" : "text-foreground"}`}>
+                      {hasActiveWatch ? "Activo y escuchando cambios" : "Inactivo"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {hasActiveWatch
+                        ? `Canal: ${watchStatus?.channelId} · Expira: ${watchExpiration || "sin fecha"}`
+                        : "Activa el webhook para sincronización bidireccional en tiempo real."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleConnectGoogle}
+                    >
+                      {hasGoogleOAuth ? "Reconectar Google" : "Conectar Google"}
+                    </Button>
+
+                    <Button
+                      variant="hero"
+                      size="sm"
+                      onClick={handleEnableWatch}
+                      disabled={!hasGoogleOAuth || registerWatch.isPending || watchStatusLoading}
+                    >
+                      {registerWatch.isPending
+                        ? "Activando..."
+                        : hasActiveWatch
+                          ? "Renovar webhook"
+                          : "Activar webhook"}
+                    </Button>
+                  </div>
+                </div>
               </div>
 
             </div>

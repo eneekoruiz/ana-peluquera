@@ -57,6 +57,10 @@ async function getCalendar() {
   return google.calendar({ version: "v3", auth });
 }
 
+export async function getGoogleCalendarClient() {
+  return getCalendar();
+}
+
 function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end: dayjs.Dayjs } | null {
   if (!startObj && !endObj) return null;
   if (startObj?.date) {

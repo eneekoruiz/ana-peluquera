@@ -42,6 +42,14 @@ export interface CancellationEmailParams {
   startTime: string;
 }
 
+export interface RescheduleEmailParams {
+  to: string;
+  customerName: string;
+  serviceName: string;
+  oldStartTime: string;
+  newStartTime: string;
+}
+
 export interface WhatsAppParams {
   phone: string;
   customerName: string;
@@ -207,6 +215,71 @@ export async function sendCancellationEmail(params: CancellationEmailParams): Pr
   if (error) {
      console.error("🔥 ERROR REAL DE RESEND AL CANCELAR:", error);
      throw new Error(`Fallo enviando email de cancelación: ${error.message}`);
+  }
+}
+
+export async function sendRescheduleEmail(params: RescheduleEmailParams): Promise<void> {
+  const { to, customerName, serviceName, oldStartTime, newStartTime } = params;
+  const oldDateStr = formatDateES(oldStartTime);
+  const newDateStr = formatDateES(newStartTime);
+
+  const { error } = await resend.emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: `Cita modificada — ${serviceName}`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="es">
+      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f7f5;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="min-width: 100%; background-color: #f9f7f5; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                <tr>
+                  <td align="center" style="padding: 40px 0 30px 0; border-bottom: 1px solid #f0ede9;">
+                    <h1 style="font-family: 'Georgia', serif; font-size: 32px; color: #1a1a1a; letter-spacing: 6px; margin: 0;">AG</h1>
+                    <p style="font-size: 10px; color: #9a8b7a; letter-spacing: 3px; text-transform: uppercase; margin: 10px 0 0 0;">Beauty Salon</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 40px 40px 20px 40px;">
+                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${customerName}</strong></p>
+                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0 0 25px 0;">Tu cita para <strong>${serviceName}</strong> ha sido actualizada. Estos son los nuevos datos:</p>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fcfbf9; border: 1px solid #f0ede9; border-radius: 4px; padding: 20px;">
+                      <tr>
+                        <td style="padding-bottom: 15px;">
+                          <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Anterior</p>
+                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${oldDateStr}</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Nuevo horario</p>
+                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${newDateStr}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 0 40px 40px 40px;">
+                    <p style="font-size: 13px; color: #888888; text-align: center; margin: 0;">Si el cambio no te encaja, responde a este correo o vuelve a reservar desde la web.</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size: 11px; color: #aaaaaa; margin: 20px 0 0 0;">© 2026 AG Beauty Salon. Donostia-San Sebastián.</p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+  });
+
+  if (error) {
+    console.error("🔥 ERROR REAL DE RESEND AL MODIFICAR:", error);
+    throw new Error(`Fallo enviando email de modificación: ${error.message}`);
   }
 }
 
