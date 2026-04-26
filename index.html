@@ -5,63 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AGL Beauty & Wellness — Peluquería y Masajes en Donostia</title>
     <meta name="description" content="AGL Beauty & Wellness — Peluquería Ana González en Donostia San Sebastián. Corte, color, masajes y bienestar. Reserva tu cita online. José María Salaberría 33." />
-    <link rel="canonical" href="https://ana-peluquera.lovable.app/" />
+    <link rel="canonical" href="https://agpeluqueria.vercel.app/" />
+
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://*.googletagmanager.com https://www.google-analytics.com https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' http://localhost:3001 https://*.supabase.co wss://*.supabase.co https://*.supabase.com https://*.firebase.com https://*.firebaseio.com https://*.googleapis.com https://*.googleusercontent.com https://www.google-analytics.com https://analytics.google.com https://*.googletagmanager.com https://*.sentry.io https://vitals.vercel-insights.com https://fonts.gstatic.com https://fonts.googleapis.com; media-src 'self'; object-src 'none'; child-src 'none'; frame-src 'self' https://www.google.com https://*.google.com https://*.google.es; worker-src 'self' blob:; base-uri 'self'; manifest-src 'self';">
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content="AGL Beauty Salon — Peluquería en Donostia" />
     <meta property="og:description" content="Cuidado profesional del cabello en el corazón de San Sebastián. Reserva tu cita en 3 pasos." />
-    <meta property="og:url" content="https://ana-peluquera.lovable.app/" />
+    <meta property="og:url" content="https://agpeluqueria.vercel.app/" />
     <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2517d829-4375-4f32-8f82-1365b02deb2b/id-preview-f6c8a093--2cd3264f-b26c-4502-88ee-7770e11d5da7.lovable.app-1774204782460.png" />
-    <meta property="og:locale" content="es_ES" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="AGL Beauty Salon — Peluquería en Donostia" />
-    <meta name="twitter:description" content="Cuidado profesional del cabello en el corazón de San Sebastián. Reserva tu cita en 3 pasos." />
-    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2517d829-4375-4f32-8f82-1365b02deb2b/id-preview-f6c8a093--2cd3264f-b26c-4502-88ee-7770e11d5da7.lovable.app-1774204782460.png" />
-    <meta name="geo.region" content="ES-PV" />
-    <meta name="geo.placename" content="Donostia-San Sebastián" />
+    
+    <meta name="theme-color" content="#C2B2A3" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="AG Beauty" />
+    
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="icon" type="image/svg+xml" sizes="192x192" href="/icon-192.svg" />
+    <link rel="icon" type="image/svg+xml" sizes="512x512" href="/icon-512.svg" />
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BeautySalon",
-      "name": "AGL Beauty Salon",
-      "alternateName": "Peluquería Ana González",
-      "url": "https://ana-peluquera.lovable.app",
-      "telephone": "+34943000000",
-      "image": "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2517d829-4375-4f32-8f82-1365b02deb2b/id-preview-f6c8a093--2cd3264f-b26c-4502-88ee-7770e11d5da7.lovable.app-1774204782460.png",
-      "priceRange": "€€",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "José María Salaberría 33",
-        "addressLocality": "Donostia-San Sebastián",
-        "postalCode": "20008",
-        "addressRegion": "Gipuzkoa",
-        "addressCountry": "ES"
-      },
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": 43.3128,
-        "longitude": -1.9822
-      },
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
-          "opens": "09:00",
-          "closes": "19:00"
-        },
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": "Saturday",
-          "opens": "09:00",
-          "closes": "14:00"
-        }
-      ],
-      "sameAs": []
-    }
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('consent', 'default', {
+        'analytics_storage': 'denied', 'ad_storage': 'denied', 'functionality_storage': 'granted', 'security_storage': 'granted'
+      });
+      gtag('config', 'GA_MEASUREMENT_ID');
     </script>
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

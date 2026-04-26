@@ -17,28 +17,35 @@
   import { BrowserRouter, Route, Routes } from "react-router-dom";
   import { Toaster as Sonner } from "@/components/ui/sonner";
   import { TooltipProvider } from "@/components/ui/tooltip";
+  import { ThemeProvider } from "next-themes";
   import { LanguageProvider } from "@/i18n/LanguageContext";
   import { AuthProvider } from "@/contexts/AuthContext";
+  import { Suspense, lazy } from "react";
   import Navbar from "@/components/Navbar";
   import Footer from "@/components/Footer";
   import AdminRoute from "@/components/AdminRoute";
   import AdminToolbar from "@/components/cms/AdminToolbar";
-  import CancelBooking from "./pages/CancelBooking"; // Importar arriba
+  import CancelBooking from "./pages/CancelBooking";
   import { Analytics } from "@vercel/analytics/react";
+  import CookieBanner from "@/components/CookieBanner";
 
-  // Páginas públicas (ahora con CMS integrado)
-  import Home from "./pages/Home";
-  import Services from "./pages/Services";
-  import QuienesSomos from "./pages/QuienesSomos";
-  import Revista from "./pages/Revista";
-  import Reservation from "./pages/Reservation";
-  import Privacidad from "./pages/Privacidad";
+  // Lazy loading para páginas públicas
+  const Home = lazy(() => import("./pages/Home"));
+  const Services = lazy(() => import("./pages/Services"));
+  const QuienesSomos = lazy(() => import("./pages/QuienesSomos"));
+  const Revista = lazy(() => import("./pages/Revista"));
+  const Reservation = lazy(() => import("./pages/Reservation"));
+  const Privacidad = lazy(() => import("./pages/Privacidad"));
+  const Cookies = lazy(() => import("./pages/Cookies"));
 
-  // Páginas de administración
-  import AdminLogin from "./pages/AdminLogin";
-  import AdminDashboard from "./pages/AdminDashboard";
-  import ClientCRMPage from "@/pages/ClientCRMPage";
-  import NotFound from "./pages/NotFound";
+  // Lazy loading para páginas de administración
+  const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+  const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+  const ClientCRMPage = lazy(() => import("@/pages/ClientCRMPage"));
+  const NotFound = lazy(() => import("./pages/NotFound"));
+
+  // Ruta de admin dinámica desde .env
+  const adminRoute = import.meta.env.VITE_ADMIN_ROUTE || "/portal-reservado";
 
   /**
    * Cliente de React Query con configuración de reintentos conservadora
@@ -56,33 +63,43 @@
   /**
    * Componente raíz de la aplicación.
    */
+  // Componente de loading simple
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  );
+
   const App = () => (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <LanguageProvider>
-            <Sonner richColors closeButton />
-            <BrowserRouter>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <LanguageProvider>
+              <Sonner richColors closeButton />
+              <BrowserRouter>
               {/* Barra de admin flotante — visible solo para Ana */}
               <AdminToolbar />
 
               <Navbar />
 
-              <Routes>
-                {/* ── Páginas públicas (con CMS integrado cuando isEditingView) ── */}
-                <Route path="/" element={<Home />} />
-                <Route path="/servicios" element={<Services />} />
-                <Route path="/quienes-somos" element={<QuienesSomos />} />
-                <Route path="/revista" element={<Revista />} />
-                <Route path="/reservar" element={<Reservation />} />
-                <Route path="/privacidad" element={<Privacidad />} />
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  {/* ── Páginas públicas (con CMS integrado cuando isEditingView) ── */}
+                  <Route path="/" element={<Home />} />
+                  <Route path="/servicios" element={<Services />} />
+                  <Route path="/quienes-somos" element={<QuienesSomos />} />
+                  <Route path="/revista" element={<Revista />} />
+                  <Route path="/reservar" element={<Reservation />} />
+                  <Route path="/privacidad" element={<Privacidad />} />
+                  <Route path="/cookies" element={<Cookies />} />
 
                 {/* ── Autenticación ── */}
-                <Route path="/portal-reservado" element={<AdminLogin />} />
+                <Route path={adminRoute} element={<AdminLogin />} />
 
                 {/* ── Panel de administración (requiere sesión) ── */}
                 <Route
-                  path="/portal-reservado/panel"
+                  path={`${adminRoute}/panel`}
                   element={
                     <AdminRoute>
                       <AdminDashboard />
@@ -92,7 +109,7 @@
                 
                 {/* ── CRM de clientes ── */}
                 <Route
-                  path="/portal-reservado/clientes"
+                  path={`${adminRoute}/clientes`}
                   element={
                     <AdminRoute>
                       <ClientCRMPage />
@@ -116,11 +133,14 @@
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
 
               <Footer />
+              <CookieBanner />
             </BrowserRouter>
             <Analytics />
-          </LanguageProvider>
+            </LanguageProvider>
+          </ThemeProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

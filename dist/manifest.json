@@ -1,0 +1,49 @@
+{
+  "name": "AG Beauty Salon",
+  "short_name": "AG Beauty",
+  "description": "Cuidado profesional del cabello y bienestar en el corazón de Donostia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F5F1",
+  "theme_color": "#C2B2A3",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "es",
+  "categories": ["beauty", "lifestyle", "health"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Reservar Cita",
+      "short_name": "Reservar",
+      "description": "Haz una reserva rápida",
+      "url": "/reservar",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Servicios",
+      "short_name": "Servicios",
+      "description": "Conoce nuestros servicios",
+      "url": "/servicios",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

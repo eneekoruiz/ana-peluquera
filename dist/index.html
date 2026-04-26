@@ -20,6 +20,16 @@
     <meta name="geo.region" content="ES-PV" />
     <meta name="geo.placename" content="Donostia-San Sebastián" />
 
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#C2B2A3" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="AG Beauty" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -60,11 +70,82 @@
       "sameAs": []
     }
     </script>
-    <script type="module" crossorigin src="/assets/index-BbwRh4-v.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BEeSIgTS.css">
+
+    <!-- Google Analytics 4 with Cookie Consent -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      // Default consent settings (denied by default)
+      gtag('consent', 'default', {
+        'analytics_storage': 'denied',
+        'ad_storage': 'denied',
+        'functionality_storage': 'granted',
+        'personalization_storage': 'denied',
+        'security_storage': 'granted'
+      });
+
+      gtag('config', 'GA_MEASUREMENT_ID', {
+        'anonymize_ip': true,
+        'allow_google_signals': false,
+        'allow_ad_personalization_signals': false
+      });
+    </script>
+
+    <!-- Cookie Consent Management -->
+    <script>
+      // Function to update cookie consent
+      window.updateCookieConsent = function(preferences) {
+        if (window.gtag) {
+          window.gtag('consent', 'update', {
+            'analytics_storage': preferences.analytics ? 'granted' : 'denied',
+            'ad_storage': preferences.marketing ? 'granted' : 'denied',
+            'functionality_storage': 'granted',
+            'personalization_storage': preferences.marketing ? 'granted' : 'denied',
+            'security_storage': 'granted'
+          });
+        }
+
+        // Update Vercel Analytics consent
+        if (window.va && preferences.analytics) {
+          window.va('consent', 'granted');
+        }
+      };
+
+      // Check existing consent on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        const consent = localStorage.getItem('cookie-consent');
+        if (consent) {
+          const preferences = JSON.parse(consent);
+          window.updateCookieConsent(preferences);
+        }
+      });
+    </script>
+    <script type="module" crossorigin src="/assets/index-aFRST-OA.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-BtIrUdbE.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-C4SMjoph.js">
+    <link rel="modulepreload" crossorigin href="/assets/firebase-D3-J2TUg.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DJj6OoTI.css">
   </head>
 
   <body>
     <div id="root"></div>
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

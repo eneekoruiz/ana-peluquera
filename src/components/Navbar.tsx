@@ -1,10 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { Menu, X, Settings } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import LanguageSelector from "@/components/LanguageSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+
+// Lazy loading para ThemeToggle
+const ThemeToggle = lazy(() => import("@/components/ThemeToggle"));
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
@@ -13,6 +16,9 @@ const Navbar = () => {
   
   const { user } = useAuth();
   const isAdmin = user && (user as any).email === 'eneekoruiz@gmail.com';
+
+  // Ruta de admin dinámica desde .env
+  const adminRoute = import.meta.env.VITE_ADMIN_ROUTE || "/portal-reservado";
 
   const navLinks = [
     { to: "/",            label: t("nav.home") },
@@ -55,11 +61,14 @@ const Navbar = () => {
           </ul>
 
           <div className="flex items-center gap-4">
+            <Suspense fallback={<div className="w-8 h-8" />}>
+              <ThemeToggle />
+            </Suspense>
             <LanguageSelector />
             
             {isAdmin && (
               <Link 
-                to="/portal-reservado/panel" 
+                to={`${adminRoute}/panel`} 
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-sand-dark text-white text-[10px] font-sans uppercase tracking-widest-plus rounded-md hover:bg-sand-dark/90 transition-colors"
               >
                 <Settings size={12} />
@@ -72,7 +81,7 @@ const Navbar = () => {
         <div className="flex items-center gap-3 md:hidden">
           {isAdmin && (
              <Link 
-               to="/portal-reservado/panel" 
+               to={`${adminRoute}/panel`} 
                className="flex items-center justify-center w-8 h-8 bg-sand-dark text-white rounded-md hover:bg-sand-dark/90 transition-colors"
              >
                <Settings size={14} />
@@ -105,6 +114,11 @@ const Navbar = () => {
                 </Link>
               </li>
             ))}
+            <li className="py-2 flex justify-center">
+              <Suspense fallback={<div className="w-8 h-8" />}>
+                <ThemeToggle />
+              </Suspense>
+            </li>
           </ul>
         </div>
       )}

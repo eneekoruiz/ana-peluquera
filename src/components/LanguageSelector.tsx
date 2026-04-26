@@ -2,6 +2,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { langLabels, type Lang } from "@/i18n/translations";
 import { Globe } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import NProgress from "nprogress";
 
 const langs: Lang[] = ["es", "en", "eu"];
 
@@ -33,7 +34,15 @@ const LanguageSelector = () => {
           {langs.map((l) => (
             <button
               key={l}
-              onClick={() => { setLang(l); setOpen(false); }}
+              onClick={() => {
+                NProgress.start();
+                
+                // 🔥 ARREGLO: Solo cambiamos el idioma del contexto. NO tocamos la URL.
+                setLang(l);
+                
+                setTimeout(() => NProgress.done(), 200);
+                setOpen(false);
+              }}
               className={`w-full text-left px-4 py-2.5 text-sm font-sans transition-colors ${
                 lang === l ? "text-foreground font-medium bg-muted/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
               }`}

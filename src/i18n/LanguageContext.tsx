@@ -8,6 +8,8 @@ interface LanguageContextType {
 }
 
 const detectLanguage = (): Lang => {
+  const pathLang = window.location.pathname.split('/')[1];
+  if (['es', 'en', 'eu'].includes(pathLang)) return pathLang as Lang;
   const stored = localStorage.getItem("ag-lang");
   if (stored && ["es", "en", "eu"].includes(stored)) return stored as Lang;
   const browserLang = navigator.language.slice(0, 2).toLowerCase();

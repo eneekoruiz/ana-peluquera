@@ -5,7 +5,6 @@ import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
 import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle, Clock, Plus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import BookingFAQ from "@/components/BookingFAQ";
 import { Scissors, Hand, Sparkles, Paintbrush, Droplets, Palette, Flower2, CircleDot } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useServices, getLocalizedLabel } from "@/hooks/useServices";
@@ -13,6 +12,7 @@ import { useAdminSettings } from "@/hooks/useAdminSettings";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { es, enGB, eu } from "date-fns/locale";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // 🔥 CMS y Cerebro
 import EditableText from "@/components/cms/EditableText";
@@ -30,7 +30,7 @@ const ALL_SLOTS = [
   "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45",
   "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45",
   "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15",
-  "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45"
+  "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30"
 ];
 
 const DEFAULT_SCHEDULE = [
@@ -67,7 +67,12 @@ const getLocalDateStr = (d: Date = new Date()) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
 
+// URL Dinámica para el backend: Usa localhost en desarrollo, ruta relativa en producción.
+const API_BASE_URL = import.meta.env.DEV ? "http://localhost:3001/api" : "/api";
+
 const Reservation = () => {
+  // ✅ Estados perfectamente alineados dentro del componente
+  const [submitted, setSubmitted] = useState(false);
   const SALON_PHONE = import.meta.env.VITE_SALON_PHONE || "34843673595";
   const PERSONAL_PHONE = import.meta.env.VITE_PERSONAL_PHONE || "34645006964";
   const { isEditingView } = useAuth(); 
@@ -95,7 +100,6 @@ const Reservation = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitTimedOut, setSubmitTimedOut] = useState(false);
   const [isFetchingSlots, setIsFetchingSlots] = useState(false);
@@ -166,8 +170,7 @@ const Reservation = () => {
       setSlotsLoadingMessage("Cargando disponibilidad...");
 
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-        const response = await fetch(`${API_URL}/bookings?date=${dateStr}`, {
+        const response = await fetch(`${API_BASE_URL}/bookings?date=${dateStr}`, {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error("Fallo en la red");
@@ -301,15 +304,12 @@ const Reservation = () => {
         start_time: selectedTime, 
         end_time: endTimeStr, 
         lang: lang,
-        // 🔥 ESTO ES LO QUE FALTABA: Mandar el sándwich al backend
         phase1Min: service.phase1_min || service.phase1Min || 0,
         phase2Min: service.phase2_min || service.phase2Min || 0,
         phase3Min: service.phase3_min || service.phase3Min || 0
       };
 
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-      
-      const response = await fetchWithTimeout(`${API_URL}/bookings`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingPayload)
@@ -322,7 +322,7 @@ const Reservation = () => {
           description: responseData.error || "Ese horario acaba de ser ocupado. Elige otro."
         });
         setStep(3);
-        const refresh = await fetchWithTimeout(`${API_URL}/bookings?date=${selectedDateStr}`);
+        const refresh = await fetchWithTimeout(`${API_BASE_URL}/bookings?date=${selectedDateStr}`);
         const freshData = await refresh.json().catch(() => []);
         setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
           ...slot,
@@ -370,7 +370,6 @@ const Reservation = () => {
     );
   }
 
-  // 🚀 AQUÍ ESTÁ EL NUEVO TICKET PREMIUM Y BOTONES
   if (submitted && service) {
     const startMin = timeToMinutes(selectedTime || "00:00");
     const duration = service.duration_min || service.durationMin || 0;
@@ -391,7 +390,6 @@ const Reservation = () => {
               Te hemos enviado un email con todos los detalles.
             </p>
 
-            {/* Ticket de Reserva Premium */}
             <div className="bg-card rounded-xl p-6 shadow-md border border-border text-left mb-8 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-sand-dark"></div>
               
@@ -409,7 +407,7 @@ const Reservation = () => {
                     {getServiceName(service)}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-muted-foreground flex items-center gap-2">
                     <CalendarIcon size={14} className="text-sand-dark" /> Fecha
@@ -418,7 +416,7 @@ const Reservation = () => {
                     {selectedDate?.toLocaleDateString("es-ES", { weekday: 'long', day: "numeric", month: "long" })}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-muted-foreground flex items-center gap-2">
                     <Clock size={14} className="text-sand-dark" /> Horario
@@ -428,14 +426,33 @@ const Reservation = () => {
                     <span className="block text-[10px] text-muted-foreground mt-0.5">({duration} min)</span>
                   </div>
                 </div>
+
+                <div className="flex justify-between text-sm items-center pt-2 border-t border-border">
+                  <span className="text-muted-foreground font-medium">Precio</span>
+                  <span className="text-foreground font-bold text-lg tabular-nums">
+                    {service?.price ? `${service.price}€` : "Consultar precio"}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Botones de Acción */}
+            {service?.price && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <h3 className="font-medium text-sm text-amber-900 mb-2">Información de Pago</h3>
+                <p className="text-xs text-amber-800 mb-2">
+                  El pago se realiza en el salón. Aceptamos efectivo, tarjeta y Bizum.
+                </p>
+                <div className="flex items-center justify-between bg-white rounded px-3 py-2 border border-amber-300">
+                  <span className="text-xs text-amber-900">Bizum:</span>
+                  <span className="font-mono text-sm font-bold text-amber-900">843 67 35 95</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
-              <Button 
-                variant="hero" 
-                className="w-full h-12 text-sm font-medium" 
+              <Button
+                variant="hero"
+                className="w-full h-12 text-sm font-medium"
                 onClick={() => {
                   setSubmitted(false);
                   setStep(1);
@@ -446,7 +463,7 @@ const Reservation = () => {
               >
                 <Plus size={16} className="mr-2" /> Hacer otra reserva
               </Button>
-              
+
               <Button variant="outline" className="w-full h-12 text-sm font-medium" asChild>
                 <Link to="/">Volver al inicio</Link>
               </Button>
@@ -797,4 +814,10 @@ const Reservation = () => {
   );
 };
 
-export default Reservation;
+const ReservationWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <Reservation />
+  </ErrorBoundary>
+);
+
+export default ReservationWithErrorBoundary;

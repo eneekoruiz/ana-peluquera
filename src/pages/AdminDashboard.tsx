@@ -22,10 +22,11 @@ const getLocalDateStr = (d = new Date()) => {
 interface WorkDay {
   dayId: number; // 0=Dom, 1=Lun...
   isActive: boolean;
-  morningStart: string; // ej: "09:00"
-  morningEnd: string;   // ej: "13:30"
-  afternoonStart: string; // ej: "15:30"
-  afternoonEnd: string;   // ej: "19:00"
+  isSplit?: boolean; 
+  morningStart: string; 
+  morningEnd: string;   
+  afternoonStart: string; 
+  afternoonEnd: string;   
 }
 
 interface Employee {
@@ -33,17 +34,17 @@ interface Employee {
   name: string;
   skills: string[];
   priority: number;
-  schedule: WorkDay[]; // Nuevo sistema de horarios
+  schedule: WorkDay[]; 
 }
 
 const DEFAULT_SCHEDULE: WorkDay[] = [
-  { dayId: 1, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Lun
-  { dayId: 2, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Mar
-  { dayId: 3, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Mié
-  { dayId: 4, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Jue
-  { dayId: 5, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Vie
-  { dayId: 6, isActive: true, morningStart: "09:00", morningEnd: "14:00", afternoonStart: "", afternoonEnd: "" }, // Sáb (Solo mañana por defecto)
-  { dayId: 0, isActive: false, morningStart: "", morningEnd: "", afternoonStart: "", afternoonEnd: "" }, // Dom (Cerrado por defecto)
+  { dayId: 1, isActive: true, isSplit: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Lun
+  { dayId: 2, isActive: true, isSplit: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Mar
+  { dayId: 3, isActive: true, isSplit: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Mié
+  { dayId: 4, isActive: true, isSplit: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Jue
+  { dayId: 5, isActive: true, isSplit: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" }, // Vie
+  { dayId: 6, isActive: true, isSplit: false, morningStart: "09:00", morningEnd: "14:00", afternoonStart: "", afternoonEnd: "" }, // Sáb
+  { dayId: 0, isActive: false, isSplit: false, morningStart: "", morningEnd: "", afternoonStart: "", afternoonEnd: "" }, // Dom
 ];
 
 // ── COMPONENTE GESTOR PERSONAL AVANZADO ──
@@ -56,13 +57,17 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
-    // Migración automática: Si el trabajador tiene el formato antiguo (workingDays: [1,2,3...]), le ponemos el horario por defecto
+    // Migración automática
     if (settings?.staff) {
       const migratedStaff = settings.staff.map((emp: any) => {
         if (!emp.schedule) {
            return { ...emp, schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)) };
         }
-        return emp;
+        const updatedSchedule = emp.schedule.map((d: any) => ({
+          ...d,
+          isSplit: d.isSplit !== undefined ? d.isSplit : (d.afternoonStart && d.afternoonEnd ? true : false)
+        }));
+        return { ...emp, schedule: updatedSchedule };
       });
       setStaff(migratedStaff);
     }
@@ -85,7 +90,6 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
     if (scheduleIndex !== -1) {
       newStaff[empIdx].schedule[scheduleIndex] = { ...newStaff[empIdx].schedule[scheduleIndex], ...data };
     } else {
-      // Si por algún motivo no existía el día, lo creamos
       const newDay = { ...DEFAULT_SCHEDULE.find(d => d.dayId === dayId)!, ...data };
       newStaff[empIdx].schedule.push(newDay);
     }
@@ -123,7 +127,7 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
             <div className="flex justify-between items-start mb-6">
               <div className="flex-1 mr-4">
                  <input type="text" value={emp.name} onChange={(e) => updateStaffMember(empIdx, { name: e.target.value })}
-                  className="font-serif text-xl text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-sand-dark focus:outline-none w-full pb-1" placeholder="Nombre..." />
+                 className="font-serif text-xl text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-sand-dark focus:outline-none w-full pb-1" placeholder="Nombre..." />
               </div>
               <button onClick={() => { setStaff(staff.filter((_, i) => i !== empIdx)); setIsDirty(true); }} className="text-muted-foreground hover:text-red-500 bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16} /></button>
             </div>
@@ -143,34 +147,56 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest-plus mb-3 flex items-center gap-1.5"><Clock size={12}/> Horario Semanal:</p>
               <div className="space-y-2 border border-border rounded-lg p-1 bg-background/50">
-                {/* Iteramos de Lunes (1) a Domingo (0) */}
                 {[1, 2, 3, 4, 5, 6, 0].map((dayId) => {
-                  const dayData = emp.schedule.find(d => d.dayId === dayId) || { dayId, isActive: false, morningStart: "", morningEnd: "", afternoonStart: "", afternoonEnd: "" };
+                  const dayData = emp.schedule.find(d => d.dayId === dayId) || { dayId, isActive: false, isSplit: false, morningStart: "", morningEnd: "", afternoonStart: "", afternoonEnd: "" };
                   
                   return (
                     <div key={dayId} className={`flex flex-col sm:flex-row sm:items-center gap-3 p-2.5 rounded-md transition-colors ${dayData.isActive ? 'bg-card shadow-sm border border-border/50' : 'opacity-60'}`}>
                       
                       <div className="flex items-center gap-3 w-28 shrink-0">
                          <input type="checkbox" checked={dayData.isActive} onChange={(e) => updateSchedule(empIdx, dayId, { isActive: e.target.checked })}
-                          className="w-4 h-4 rounded border-border text-sand-dark focus:ring-ring cursor-pointer" />
+                         className="w-4 h-4 rounded border-border text-sand-dark focus:ring-ring cursor-pointer" />
                          <span className={`text-sm font-medium ${dayData.isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{daysLabels[dayId]}</span>
                       </div>
 
                       {dayData.isActive ? (
                         <div className="flex flex-wrap items-center gap-2 flex-1">
-                          {/* Turno Mañana */}
-                          <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded">
+                          
+                          {/* BOTÓN ALTERNADOR PARTIDO/CONTINUO */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextIsSplit = !dayData.isSplit;
+                              updateSchedule(empIdx, dayId, {
+                                isSplit: nextIsSplit,
+                                ...(!nextIsSplit ? { afternoonStart: "", afternoonEnd: "" } : {})
+                              });
+                            }}
+                            className={`text-[10px] px-2 py-1.5 rounded uppercase tracking-wider font-medium transition-colors cursor-pointer w-[75px] shrink-0 text-center mr-1 ${
+                              dayData.isSplit
+                                ? 'bg-amber-100/50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                            }`}
+                          >
+                            {dayData.isSplit ? "Partido" : "Continuo"}
+                          </button>
+
+                          <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded border border-border/50">
                             <input type="time" value={dayData.morningStart} onChange={(e) => updateSchedule(empIdx, dayId, { morningStart: e.target.value })} className="text-xs bg-transparent border-none focus:ring-0 p-0 w-16" />
                             <span className="text-xs text-muted-foreground">-</span>
                             <input type="time" value={dayData.morningEnd} onChange={(e) => updateSchedule(empIdx, dayId, { morningEnd: e.target.value })} className="text-xs bg-transparent border-none focus:ring-0 p-0 w-16" />
                           </div>
                           
-                          {/* Turno Tarde */}
-                          <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded">
-                            <input type="time" value={dayData.afternoonStart} onChange={(e) => updateSchedule(empIdx, dayId, { afternoonStart: e.target.value })} className="text-xs bg-transparent border-none focus:ring-0 p-0 w-16" />
-                            <span className="text-xs text-muted-foreground">-</span>
-                            <input type="time" value={dayData.afternoonEnd} onChange={(e) => updateSchedule(empIdx, dayId, { afternoonEnd: e.target.value })} className="text-xs bg-transparent border-none focus:ring-0 p-0 w-16" />
-                          </div>
+                          {dayData.isSplit && (
+                            <>
+                              <span className="text-xs text-muted-foreground hidden sm:inline">y</span>
+                              <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded border border-border/50">
+                                <input type="time" value={dayData.afternoonStart} onChange={(e) => updateSchedule(empIdx, dayId, { afternoonStart: e.target.value })} className="text-xs bg-transparent border-none focus:ring-0 p-0 w-16" />
+                                <span className="text-xs text-muted-foreground">-</span>
+                                <input type="time" value={dayData.afternoonEnd} onChange={(e) => updateSchedule(empIdx, dayId, { afternoonEnd: e.target.value })} className="text-xs bg-transparent border-none focus:ring-0 p-0 w-16" />
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground italic flex-1">Día libre</span>
@@ -246,6 +272,38 @@ const AdminDashboard = () => {
               </div>
               <div className="flex items-center gap-3">
                 <Button variant="outline" size="sm" onClick={async () => { await logout(); window.location.href = "/portal-reservado"; }}>Cerrar sesión</Button>
+              </div>
+            </div>
+          </ScrollReveal>
+
+          {/* Estado del Sistema */}
+          <ScrollReveal delay={30}>
+            <div className="bg-gradient-to-r from-sand-light/20 to-cream/30 rounded-xl p-6 mb-8 border border-sand-light/30">
+              <h2 className="font-serif text-xl text-foreground mb-4 flex items-center gap-2">
+                <Smartphone size={20} />
+                Estado del Sistema
+              </h2>
+              <div className="bg-white/70 backdrop-blur-sm rounded-lg p-5 border border-border/50">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-border/50">
+                  <div className="flex flex-col md:items-center pt-2 md:pt-0">
+                    <span className="text-muted-foreground text-sm mb-1">Reservas Web:</span>
+                    <span className={`font-semibold text-lg ${settings?.bookings_enabled !== false ? 'text-green-600' : 'text-red-600'}`}>
+                      {settings?.bookings_enabled !== false ? 'Activas' : 'Pausadas'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col md:items-center pt-4 md:pt-0">
+                    <span className="text-muted-foreground text-sm mb-1">Permisos de Google:</span>
+                    <span className={`font-semibold text-lg ${hasGoogleOAuth ? 'text-blue-600' : 'text-orange-600'}`}>
+                      {hasGoogleOAuth ? 'Vinculado' : 'Pendiente'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col md:items-center pt-4 md:pt-0">
+                    <span className="text-muted-foreground text-sm mb-1">Sincronización (Webhook):</span>
+                    <span className={`font-semibold text-lg ${hasActiveWatch ? 'text-green-600' : 'text-orange-600'}`}>
+                      {hasActiveWatch ? 'Escuchando' : 'Inactivo'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </ScrollReveal>

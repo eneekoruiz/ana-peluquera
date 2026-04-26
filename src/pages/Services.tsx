@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ScrollReveal from "@/components/ScrollReveal";
+import React, { useState, useCallback, Suspense } from "react";
+import { ServicesSkeleton } from "@/components/Skeletons";
 import {
   ArrowRight, Clock, Timer, Scissors, Hand, Sparkles,
   Paintbrush, Droplets, Palette, Flower2, CircleDot,

@@ -16,6 +16,8 @@ dayjs.extend(customParseFormat);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:8080';
+// 🔥 Email de Ana para enviarle las alertas si falla Google
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ana@tudominio.com';
 
 export interface BookingPayload {
   client_name: string;
@@ -91,6 +93,8 @@ export async function createBooking(data: BookingPayload) {
   if (conflict) throw new Error("Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.");
 
   const bookingRef = db.collection('bookings').doc();
+  
+  // 1. Guardamos en Firebase (Esto es sagrado, si falla aquí, sí tiramos error)
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(
       db.collection('bookings')
@@ -104,7 +108,6 @@ export async function createBooking(data: BookingPayload) {
       ...data,
       id: bookingRef.id,
       cancelToken,
-      // 🚀 FIX: Devolvemos status a confirmed para que la web lo reconozca al cancelar
       status: 'confirmed', 
       createdAt: new Date().toISOString(), 
       duration_min: p1Min + p2Min + p3Min,
@@ -115,6 +118,11 @@ export async function createBooking(data: BookingPayload) {
     });
   });
 
+  const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
+  const formattedDate = startDate.locale(userLang).format('D [de] MMMM YYYY'); 
+  const formattedTime = startDate.format('HH:mm');
+
+  // 2. Intentamos sincronizar con Google
   try {
     const gcal = await createAppointment({
       start: startDate.toDate(),
@@ -131,32 +139,55 @@ export async function createBooking(data: BookingPayload) {
 
     await bookingRef.update({ googleEventId: gcal.eventId });
 
-    const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
-    const formattedDate = startDate.locale(userLang).format('D [de] MMMM YYYY'); 
-    const formattedTime = startDate.format('HH:mm');
+  } catch (error) {
+    // 🚨 FALLO GOOGLE: NO borramos la reserva, avisamos a Ana.
+    console.error("❌ Error en sincronización con Google. Enviando alerta a Ana...");
+    
+    try {
+      await resend.emails.send({
+        from: 'AG Beauty Alertas <onboarding@resend.dev>',
+        to: ADMIN_EMAIL,
+        subject: '⚠️ Error de Sincronización - AG Beauty Salon',
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #d97706;">⚠️ Atención Requerida</h2>
+            <p>Hola Ana,</p>
+            <p>Acaba de entrar una nueva reserva de <strong>${data.client_name}</strong> para el <strong>${formattedDate} a las ${formattedTime}</strong> (${finalServiceName}).</p>
+            <p>La reserva se ha guardado correctamente en la base de datos y el cliente ha recibido su confirmación.</p>
+            <p style="color: #dc2626; font-weight: bold;">Sin embargo, NO hemos podido añadirla a tu Google Calendar.</p>
+            <p>Esto ocurre si has cambiado la contraseña de tu cuenta de Google o los permisos han caducado. Para arreglarlo, entra al panel de administración y haz clic en <strong>"Conectar Google"</strong>.</p>
+            <hr style="border: 1px solid #eee; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #888;">AG Beauty System - Mensaje automático</p>
+          </div>
+        `
+      });
+    } catch (emailErr) {
+      console.error("Tampoco se pudo enviar el email a Ana", emailErr);
+    }
+  }
 
-    const subjects = {
-      es: `Reserva Confirmada: ${finalServiceName} - AG Beauty Salon`,
-      en: `Booking Confirmed: ${finalServiceName} - AG Beauty Salon`,
-      eu: `Hitzordua Baieztatuta: ${finalServiceName} - AG Beauty Salon`
-    };
+  // 3. Enviamos confirmación al cliente (Siempre, aunque Google falle)
+  const subjects = {
+    es: `Reserva Confirmada: ${finalServiceName} - AG Beauty Salon`,
+    en: `Booking Confirmed: ${finalServiceName} - AG Beauty Salon`,
+    eu: `Hitzordua Baieztatuta: ${finalServiceName} - AG Beauty Salon`
+  };
 
-    if (data.client_email && data.client_email.trim()) {
+  if (data.client_email && data.client_email.trim()) {
+    try {
       await resend.emails.send({
         from: 'AG Beauty Salon <onboarding@resend.dev>', 
         to: data.client_email,
         subject: subjects[userLang as keyof typeof subjects],
         html: getProfessionalEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
       });
+    } catch (clientEmailErr) {
+      console.error("Error enviando email al cliente, pero reserva guardada.", clientEmailErr);
     }
-
-    return { success: true, bookingId: bookingRef.id };
-
-  } catch (error) {
-    console.error("❌ Error en sincronización. Revirtiendo Firebase...");
-    await bookingRef.delete(); 
-    throw new Error("No se pudo completar la reserva. Por favor, inténtalo de nuevo.");
   }
+
+  // Devolvemos éxito al frontend
+  return { success: true, bookingId: bookingRef.id };
 }
 
 export async function cancelBookingByToken(token: string) {

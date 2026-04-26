@@ -83,9 +83,25 @@ const Footer = () => {
           <p className="text-xs text-muted-foreground tracking-wide">
             © {new Date().getFullYear()} AG Beauty Salon. {t("footer.rights")}
           </p>
-          <Link to="/privacidad" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            {t("footer.privacy")}
-          </Link>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                // Reset cookie banner to show settings
+                localStorage.removeItem('cookie-consent');
+                localStorage.removeItem('cookie-consent-date');
+                window.location.reload();
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Preferencias de Cookies
+            </button>
+            <Link to="/cookies" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Política de Cookies
+            </Link>
+            <Link to="/privacidad" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              {t("footer.privacy")}
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

@@ -34,6 +34,9 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: authLoading } = useAuth();
 
+  // Ruta de admin dinámica desde .env
+  const adminRoute = import.meta.env.VITE_ADMIN_ROUTE || "/portal-reservado";
+
   // Mientras se resuelve el estado de auth, mostramos spinner
   if (authLoading) {
     return (
@@ -45,7 +48,7 @@ const AdminLogin = () => {
 
   // Si ya está autenticada, redirigir al dashboard
   if (isAdmin) {
-    return <Navigate to="/portal-reservado/panel" replace />;
+    return <Navigate to={`${adminRoute}/panel`} replace />;
   }
 
   /**
@@ -64,7 +67,7 @@ const AdminLogin = () => {
       // El AuthContext detectará el cambio de estado automáticamente
       // vía onAuthStateChanged — solo navegamos al dashboard
       toast.success("Bienvenida, Ana 👋");
-      navigate("/portal-reservado/panel");
+      navigate(`${adminRoute}/panel`);
       
     } catch (err: unknown) {
       console.error("Error en login:", err);
