@@ -146,7 +146,7 @@ export async function createBooking(data: BookingPayload) {
     // A) Borramos la reserva de Firebase porque no es segura
     await bookingRef.delete();
     
-    // B) Avisamos a Ana
+    // B) Avisamos a Ana urgentemente
     try {
       await resend.emails.send({
         from: 'AG Beauty Alertas <onboarding@resend.dev>',
@@ -160,8 +160,6 @@ export async function createBooking(data: BookingPayload) {
             <p style="color: #dc2626; font-weight: bold;">La reserva NO se ha guardado porque tu calendario está desconectado.</p>
             <p>Se le ha mostrado al cliente un aviso para que reserve por WhatsApp.</p>
             <p>Para volver a aceptar reservas automáticas, entra al panel de administración y haz clic en <strong>"Conectar Google"</strong>.</p>
-            <hr style="border: 1px solid #eee; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #888;">AG Beauty System - Mensaje automático</p>
           </div>
         `
       });
@@ -169,17 +167,18 @@ export async function createBooking(data: BookingPayload) {
       console.error("Tampoco se pudo enviar el email a Ana", emailErr);
     }
 
-    // C) Le decimos al frontend que estamos en mantenimiento. Esto detiene la ejecución
-    // por lo que el cliente NO recibe el email de confirmación (porque la reserva no se hizo).
+    // C) DETENEMOS EL CÓDIGO AQUÍ. El cliente no recibe confirmación.
     throw new Error("MAINTENANCE_MODE");
   }
 
-  // 3. Enviamos confirmación al cliente (Solo si llegamos aquí, es decir, si Google NO falló)
+  // 3. Enviamos confirmación al cliente (Solo llegará aquí si Google NO falló)
   const subjects = {
     es: `Reserva Confirmada: ${finalServiceName} - AG Beauty Salon`,
     en: `Booking Confirmed: ${finalServiceName} - AG Beauty Salon`,
     eu: `Hitzordua Baieztatuta: ${finalServiceName} - AG Beauty Salon`
   };
+  
+  // ... (aquí sigue tu código normal de Resend para el cliente)
 
   if (data.client_email && data.client_email.trim()) {
     try {
