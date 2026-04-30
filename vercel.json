@@ -2,10 +2,11 @@
   "$schema":  "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "framework": "vite",
+  
   "rewrites": [
     {
-      "source": "/((?!api|assets|icons|fonts|favicon\\.ico|robots\\.txt|sitemap\\.xml|\\.well-known).*)",
-      "destination": "/index.html"
+      "source": "/api/:path*",
+      "destination": "https://ag-beauty-backend.vercel.app/api/:path*"
     }
   ],
   "headers": [
