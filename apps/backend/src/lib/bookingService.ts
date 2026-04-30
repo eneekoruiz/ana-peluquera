@@ -94,7 +94,7 @@ export async function createBooking(data: BookingPayload) {
 
   const bookingRef = db.collection('bookings').doc();
   
-  // 1. Guardamos en Firebase (Esto es sagrado, si falla aquí, sí tiramos error)
+  // 1. Guardamos temporalmente en Firebase
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(
       db.collection('bookings')
@@ -140,22 +140,26 @@ export async function createBooking(data: BookingPayload) {
     await bookingRef.update({ googleEventId: gcal.eventId });
 
   } catch (error) {
-    // 🚨 FALLO GOOGLE: NO borramos la reserva, avisamos a Ana.
-    console.error("❌ Error en sincronización con Google. Enviando alerta a Ana...");
+    // 🚨 FALLO GOOGLE: PLAN DE MANTENIMIENTO
+    console.error("❌ Error en sincronización con Google. Activando modo mantenimiento...");
     
+    // A) Borramos la reserva de Firebase porque no es segura
+    await bookingRef.delete();
+    
+    // B) Avisamos a Ana
     try {
       await resend.emails.send({
         from: 'AG Beauty Alertas <onboarding@resend.dev>',
         to: ADMIN_EMAIL,
-        subject: '⚠️ Error de Sincronización - AG Beauty Salon',
+        subject: '⚠️ SISTEMA DESCONECTADO - AG Beauty Salon',
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #d97706;">⚠️ Atención Requerida</h2>
+            <h2 style="color: #dc2626;">⚠️ Google Calendar Desconectado</h2>
             <p>Hola Ana,</p>
-            <p>Acaba de entrar una nueva reserva de <strong>${data.client_name}</strong> para el <strong>${formattedDate} a las ${formattedTime}</strong> (${finalServiceName}).</p>
-            <p>La reserva se ha guardado correctamente en la base de datos y el cliente ha recibido su confirmación.</p>
-            <p style="color: #dc2626; font-weight: bold;">Sin embargo, NO hemos podido añadirla a tu Google Calendar.</p>
-            <p>Esto ocurre si has cambiado la contraseña de tu cuenta de Google o los permisos han caducado. Para arreglarlo, entra al panel de administración y haz clic en <strong>"Conectar Google"</strong>.</p>
+            <p>Un cliente (<strong>${data.client_name}</strong>) ha intentado reservar el <strong>${formattedDate} a las ${formattedTime}</strong>.</p>
+            <p style="color: #dc2626; font-weight: bold;">La reserva NO se ha guardado porque tu calendario está desconectado.</p>
+            <p>Se le ha mostrado al cliente un aviso para que reserve por WhatsApp.</p>
+            <p>Para volver a aceptar reservas automáticas, entra al panel de administración y haz clic en <strong>"Conectar Google"</strong>.</p>
             <hr style="border: 1px solid #eee; margin: 20px 0;" />
             <p style="font-size: 12px; color: #888;">AG Beauty System - Mensaje automático</p>
           </div>
@@ -164,9 +168,13 @@ export async function createBooking(data: BookingPayload) {
     } catch (emailErr) {
       console.error("Tampoco se pudo enviar el email a Ana", emailErr);
     }
+
+    // C) Le decimos al frontend que estamos en mantenimiento. Esto detiene la ejecución
+    // por lo que el cliente NO recibe el email de confirmación (porque la reserva no se hizo).
+    throw new Error("MAINTENANCE_MODE");
   }
 
-  // 3. Enviamos confirmación al cliente (Siempre, aunque Google falle)
+  // 3. Enviamos confirmación al cliente (Solo si llegamos aquí, es decir, si Google NO falló)
   const subjects = {
     es: `Reserva Confirmada: ${finalServiceName} - AG Beauty Salon`,
     en: `Booking Confirmed: ${finalServiceName} - AG Beauty Salon`,
