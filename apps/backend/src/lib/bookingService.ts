@@ -19,6 +19,13 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:8080';
 // 🔥 Email de Ana para enviarle las alertas si falla Google
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ana@tudominio.com';
 
+const timeToMinutes = (t: string) => {
+  if (!t || !t.includes(":")) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
+
 export interface BookingPayload {
   client_name: string;
   client_email?: string | null;
@@ -37,10 +44,14 @@ export async function getAvailableSlots(date: string) {
     const end = dayjs.tz(`${date}T23:59:59`, "Europe/Madrid").toDate();
     const response = await getBusySlots({ start, end });
     return response.busy;
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === "CALENDAR_DISCONNECTED") {
+      throw new Error("MAINTENANCE_MODE");
+    }
     throw new Error('No se pudo cargar la disponibilidad.');
   }
 }
+
 
 export async function createBooking(data: BookingPayload) {
   const db = getFirebaseAdminApp().firestore();
@@ -61,23 +72,29 @@ export async function createBooking(data: BookingPayload) {
   const { busy } = await getBusySlots({ 
     start: dayjs.tz(`${data.date}T00:00:00`, "Europe/Madrid").toDate(), 
     end: dayjs.tz(`${data.date}T23:59:59`, "Europe/Madrid").toDate() 
+  }).catch(err => {
+    if (err.message === "CALENDAR_DISCONNECTED") throw new Error("MAINTENANCE_MODE");
+    throw err;
   });
+
 
   const p1Min = Number(serviceInfo?.phase1_min || serviceInfo?.phase1Min || serviceInfo?.duration_min || serviceInfo?.durationMin || 0);
   const p2Min = Number(serviceInfo?.phase2_min || serviceInfo?.phase2Min || 0);
   const p3Min = Number(serviceInfo?.phase3_min || serviceInfo?.phase3Min || 0);
 
-  const p1Start = startDate.valueOf();
-  const p1End = startDate.add(p1Min, 'minute').valueOf();
-  const p2End = startDate.add(p1Min + p2Min, 'minute').valueOf();
-  const p3End = startDate.add(p1Min + p2Min + p3Min, 'minute').valueOf();
+  const sMin = timeToMinutes(data.start_time);
+  const p1Start = sMin;
+  const p1End = sMin + p1Min;
+  const p2End = sMin + p1Min + p2Min;
+  const p3End = sMin + p1Min + p2Min + p3Min;
+
 
   const isOverlap = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && e1 > s2;
 
   let conflict = false;
   for (const slot of busy) {
-    const bStart = slot.start.valueOf();
-    const bEnd = slot.end.valueOf();
+    const bStart = timeToMinutes(slot.start.format('HH:mm'));
+    const bEnd = timeToMinutes(slot.end.format('HH:mm'));
     const isWorking = slot.isAppointment === true;
 
     if (!isWorking) {
@@ -90,19 +107,40 @@ export async function createBooking(data: BookingPayload) {
     }
   }
 
-  if (conflict) throw new Error("Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.");
+
+  if (conflict) {
+    await db.collection('system_logs').add({
+      type: 'BOOKING_CONFLICT',
+      data: { date: data.date, time: data.start_time, client: data.client_name },
+      timestamp: new Date().toISOString()
+    });
+    throw new Error("Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.");
+  }
+
 
   const bookingRef = db.collection('bookings').doc();
   
-  // 1. Guardamos temporalmente en Firebase
+  // 1. Final Gate: Transacción en Firebase para asegurar atomicidad total
   await db.runTransaction(async (transaction) => {
+    // Buscamos cualquier reserva confirmada para este día
     const snapshot = await transaction.get(
       db.collection('bookings')
         .where('date', '==', data.date)
-        .where('start_time', '==', data.start_time)
-        .where('status', 'in', ['confirmed', 'pending'])
+        .where('status', '==', 'confirmed')
     );
-    if (!snapshot.empty) throw new Error("Alguien se adelantó por milisegundos.");
+    
+    const existingBookings = snapshot.docs.map(doc => doc.data());
+    
+    // Verificamos solapamientos con reservas ya existentes en Firebase
+    for (const eb of existingBookings) {
+      const ebStart = timeToMinutes(eb.start_time);
+      const ebEnd = timeToMinutes(eb.end_time);
+      
+      // Comprobamos choque con cualquiera de las fases (P1, P3 son las críticas)
+      if (isOverlap(p1Start, p1End, ebStart, ebEnd)) throw new Error("CONFLICT");
+      if (p3Min > 0 && isOverlap(p2End, p3End, ebStart, ebEnd)) throw new Error("CONFLICT");
+    }
+
 
     transaction.set(bookingRef, {
       ...data,
@@ -141,10 +179,15 @@ export async function createBooking(data: BookingPayload) {
 
   } catch (error) {
     // 🚨 FALLO GOOGLE: PLAN DE MANTENIMIENTO
-    console.error("❌ Error en sincronización con Google. Activando modo mantenimiento...");
+    console.error("❌ Error en sincronización con Google. Revirtiendo reserva...");
     
-    // A) Borramos la reserva de Firebase porque no es segura
-    await bookingRef.delete();
+    // A) Marcamos como error en Firebase para registro, pero no 'confirmed'
+    await bookingRef.update({ 
+      status: 'error', 
+      error: 'Google Sync Failed',
+      failedAt: new Date().toISOString() 
+    });
+
     
     // B) Avisamos a Ana urgentemente
     try {
@@ -193,9 +236,18 @@ export async function createBooking(data: BookingPayload) {
     }
   }
 
+  // Log de éxito
+  await db.collection('system_logs').add({
+    type: 'BOOKING_SUCCESS',
+    bookingId: bookingRef.id,
+    data: { date: data.date, time: data.start_time, service: finalServiceName },
+    timestamp: new Date().toISOString()
+  });
+
   // Devolvemos éxito al frontend
   return { success: true, bookingId: bookingRef.id };
 }
+
 
 export async function cancelBookingByToken(token: string) {
   try {

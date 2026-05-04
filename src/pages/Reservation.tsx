@@ -106,6 +106,8 @@ const Reservation = () => {
   const [slotsLoadingMessage, setSlotsLoadingMessage] = useState("Cargando disponibilidad...");
   const [slotsFetchTimedOut, setSlotsFetchTimedOut] = useState(false);
   const [slotsRetryTick, setSlotsRetryTick] = useState(0);
+  const [isCalendarOffline, setIsCalendarOffline] = useState(false);
+
 
   const todayStr = getLocalDateStr();
   const dateStr = selectedDate ? getLocalDateStr(selectedDate) : "";
@@ -134,6 +136,23 @@ const Reservation = () => {
     
     return false;
   };
+
+  // ✅ NUEVO: Verificar estado de sincronización al cargar
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/calendar/status`);
+        const data = await res.json();
+        if (data.status === 'disconnected') {
+          setIsCalendarOffline(true);
+        }
+      } catch (e) {
+        console.error("No se pudo verificar el estado del calendario");
+      }
+    };
+    checkStatus();
+  }, []);
+
 
   useEffect(() => {
     if (selectedDate && settings && isDateDisabled(selectedDate)) {
@@ -177,7 +196,13 @@ const Reservation = () => {
         
         const data = await response.json();
         
+        if (data.error === "MAINTENANCE_MODE") {
+          setIsCalendarOffline(true);
+          return;
+        }
+
         const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => {
+
           let st = "00:00";
           let et = "23:59";
           
@@ -352,7 +377,7 @@ const Reservation = () => {
 
   const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
 
-  if (bookingsDisabled) {
+  if (bookingsDisabled || isCalendarOffline) {
     return (
       <main className="pt-16 min-h-screen flex items-center justify-center bg-warm-white">
         <div className="container max-w-md text-center px-6">
@@ -360,15 +385,36 @@ const Reservation = () => {
             <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CalendarIcon size={32} className="text-amber-600" />
             </div>
-            <h1 className="font-serif text-3xl text-foreground mb-4">Mantenimiento</h1>
+            <h1 className="font-serif text-3xl text-foreground mb-4">
+              {isCalendarOffline ? "Agenda en Mantenimiento" : "Reservas Pausadas"}
+            </h1>
             <p className="text-muted-foreground mb-8 leading-relaxed">
-              El sistema de reservas online está pausado temporalmente.
+              {isCalendarOffline 
+                ? "Estamos actualizando nuestra agenda digital para ofrecerte el mejor servicio. Mientras tanto, puedes reservar directamente por WhatsApp."
+                : "El sistema de reservas online está pausado temporalmente."}
             </p>
+            
+            {isCalendarOffline && (
+              <div className="flex flex-col gap-3">
+                <Button variant="hero" className="w-full h-14 text-base" asChild>
+                  <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle size={20} className="mr-2" /> Reservar por WhatsApp
+                  </a>
+                </Button>
+                <Button variant="outline" className="w-full h-14 text-base" asChild>
+                  <a href={`tel:+${SALON_PHONE}`}>
+                    <Phone size={20} className="mr-2" /> Llamar al Salón
+                  </a>
+                </Button>
+              </div>
+            )}
+
           </ScrollReveal>
         </div>
       </main>
     );
   }
+
 
   if (submitted && service) {
     const startMin = timeToMinutes(selectedTime || "00:00");
@@ -451,6 +497,32 @@ const Reservation = () => {
 
             <div className="flex flex-col gap-3">
               <Button
+                variant="hero"
+                className="w-full h-14 text-base font-semibold bg-green-600 hover:bg-green-700 text-white border-none"
+                asChild
+              >
+                <a 
+                  href={`https://wa.me/${PERSONAL_PHONE}?text=${encodeURIComponent(
+                    `✨ *NUEVA RESERVA WEB*\n\n` +
+                    `👤 *Cliente:* ${name}\n` +
+                    `✂️ *Servicio:* ${getServiceName(service)}\n` +
+                    `📅 *Día:* ${selectedDate?.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' })}\n` +
+                    `🕒 *Hora:* ${selectedTime}\n` +
+                    `📱 *Tel:* ${phone}\n` +
+                    `📧 *Email:* ${email || 'No proporcionado'}\n\n` +
+                    `--- \n` +
+                    `💬 _¡Hola Ana! Acabo de reservar por la web. ¡Nos vemos pronto!_`
+                  )}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={20} className="mr-2" /> Avisar por WhatsApp a Ana
+                </a>
+
+              </Button>
+
+              <Button
+
                 variant="hero"
                 className="w-full h-12 text-sm font-medium"
                 onClick={() => {

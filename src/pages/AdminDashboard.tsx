@@ -12,7 +12,9 @@ import {
   getGoogleOAuthUrl,
   useCalendarWatchStatus,
   useRegisterCalendarWatch,
+  useCalendarHealth,
 } from "@/hooks/useCalendarWatch";
+
 
 const getLocalDateStr = (d = new Date()) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -219,7 +221,9 @@ const AdminDashboard = () => {
   const updateSettings = useUpdateAdminSettings();
   const { logout } = useAuth();
   const { data: watchStatus, isFetching: watchStatusLoading, refetch: refetchWatchStatus } = useCalendarWatchStatus();
+  const { data: calendarHealth, isLoading: healthLoading } = useCalendarHealth();
   const registerWatch = useRegisterCalendarWatch();
+
   
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -298,14 +302,21 @@ const AdminDashboard = () => {
                     </span>
                   </div>
                   <div className="flex flex-col md:items-center pt-4 md:pt-0">
-                    <span className="text-muted-foreground text-sm mb-1">Sincronización (Webhook):</span>
-                    <span className={`font-semibold text-lg ${hasActiveWatch ? 'text-green-600' : 'text-orange-600'}`}>
-                      {hasActiveWatch ? 'Escuchando' : 'Inactivo'}
-                    </span>
+                    <span className="text-muted-foreground text-sm mb-1">Estado de la Sincronización:</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full animate-pulse ${calendarHealth?.status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className={`font-semibold text-lg ${calendarHealth?.status === 'connected' ? 'text-green-600' : 'text-red-600'}`}>
+                        {healthLoading ? 'Verificando...' : (calendarHealth?.status === 'connected' ? 'Conectado y Operativo' : 'DESCONECTADO')}
+                      </span>
+                    </div>
+                    {calendarHealth?.status === 'disconnected' && (
+                      <p className="text-[10px] text-red-500 mt-1 font-bold animate-bounce">⚠️ RECONEXIÓN REQUERIDA</p>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
+
           </ScrollReveal>
 
           <ScrollReveal delay={60}>

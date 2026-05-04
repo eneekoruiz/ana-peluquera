@@ -43,7 +43,9 @@ async function getOAuth2Client() {
   const refreshToken = data?.google_refresh_token;
 
   if (!refreshToken) {
-    throw new Error("No hay cuenta de Google vinculada. Ana debe iniciar sesión en el panel de administración.");
+    const err: any = new Error("CALENDAR_DISCONNECTED");
+    err.code = "MISSING_REFRESH_TOKEN";
+    throw err;
   }
 
   // Le damos la llave al cliente de Google para que actúe en nombre de Ana
@@ -53,13 +55,36 @@ async function getOAuth2Client() {
 
 // 🚀 Ahora obtener el calendario es una función asíncrona
 async function getCalendar() {
-  const auth = await getOAuth2Client();
-  return google.calendar({ version: "v3", auth });
+  try {
+    const auth = await getOAuth2Client();
+    return google.calendar({ version: "v3", auth });
+  } catch (error: any) {
+    if (error.message === "CALENDAR_DISCONNECTED") throw error;
+    console.error("Error al inicializar cliente de calendario:", error);
+    throw new Error("CALENDAR_DISCONNECTED");
+  }
+}
+
+/**
+ * Verifica si la conexión con Google Calendar es funcional.
+ * Se usa para el 'Modo Mantenimiento' preventivo.
+ */
+export async function checkCalendarSyncStatus() {
+  try {
+    const calendar = await getCalendar();
+    // Intentamos una operación ligera para validar el token
+    await calendar.calendarList.list({ minAccessRole: "owner", maxResults: 1 });
+    return { status: "connected", message: "Google Calendar sincronizado correctamente." };
+  } catch (error: any) {
+    console.error("❌ Fallo en la verificación de sincronización:", error.message);
+    return { status: "disconnected", error: error.message || "Unknown error" };
+  }
 }
 
 export async function getGoogleCalendarClient() {
   return getCalendar();
 }
+
 
 function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end: dayjs.Dayjs } | null {
   if (!startObj && !endObj) return null;
@@ -235,7 +260,14 @@ export async function createAppointment(req: CreateAppointmentRequest) {
         phase1Min: String(req.phase1Min || ""),
         phase3Min: String(req.phase3Min || "")
       } },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: "popup", minutes: 30 }, // Aviso en el móvil 30 min antes
+        ],
+      },
     },
+
   });
   return { eventId: (event.data.id as string), htmlLink: (event.data.htmlLink as string) };
 }

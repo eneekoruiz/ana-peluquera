@@ -10,7 +10,7 @@ const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/uplo
 const CLOUDINARY_DESTROY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/destroy`;
 
 const API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY;
-const API_SECRET = import.meta.env.VITE_CLOUDINARY_API_SECRET;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 const COMPRESSION_OPTIONS = {
   maxSizeMB: 0.8,
@@ -18,14 +18,6 @@ const COMPRESSION_OPTIONS = {
   useWebWorker: true,
   initialQuality: 0.82,
 };
-
-// ─── HELPER: Generar firma SHA-1 nativa en el navegador ───────────────────
-async function generateSHA1(message: string) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 // ─── HELPER: Extraer el Public ID de una URL de Cloudinary ────────────────
 function extractPublicId(url: string) {
@@ -81,7 +73,7 @@ export async function compressAndUpload(file: File, storagePath?: string): Promi
 }
 
 /**
- * Elimina físicamente un archivo de Cloudinary usando el API Secret.
+ * Elimina físicamente un archivo de Cloudinary delegando en el backend por seguridad.
  */
 export async function deleteStorageFile(publicUrl: string): Promise<void> {
   if (!publicUrl || !publicUrl.includes("cloudinary.com")) return;
@@ -89,36 +81,23 @@ export async function deleteStorageFile(publicUrl: string): Promise<void> {
   const publicId = extractPublicId(publicUrl);
   if (!publicId) return;
 
-  if (!API_KEY || !API_SECRET) {
-    console.warn("⚠️ No se puede borrar: Faltan las llaves en .env.local");
-    return;
-  }
-
   try {
-    // 1. Crear la firma (Fórmula exigida por Cloudinary: public_id + timestamp + api_secret)
-    const timestamp = Math.round(new Date().getTime() / 1000).toString();
-    const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${API_SECRET}`;
-    const signature = await generateSHA1(stringToSign);
-
-    // 2. Preparar los datos
-    const formData = new FormData();
-    formData.append("public_id", publicId);
-    formData.append("signature", signature);
-    formData.append("api_key", API_KEY);
-    formData.append("timestamp", timestamp);
-
-    // 3. Enviar la petición de destrucción
-    const response = await fetch(CLOUDINARY_DESTROY_URL, {
+    // Llamamos a nuestro backend para que él firme la petición con el API_SECRET
+    const response = await fetch(`${API_URL}/admin/delete-asset`, {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ publicId }),
     });
 
     if (response.ok) {
-      console.info(`🗑️ Imagen destruida en Cloudinary: ${publicId}`);
+      console.info(`🗑️ Imagen destruida vía Backend: ${publicId}`);
     } else {
-      console.error("Fallo al intentar destruir la imagen", await response.text());
+      const errorData = await response.json();
+      console.error("Fallo al intentar destruir la imagen vía Backend", errorData);
     }
   } catch (error) {
-    console.error("Error destruyendo imagen:", error);
+    console.error("Error destruyendo imagen vía Backend:", error);
   }
 }

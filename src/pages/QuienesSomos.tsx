@@ -203,70 +203,119 @@ const QuienesSomos = () => {
         </div>
       </section>
 
-      {/* ── Historia ────────────────────────────────────────────────────── */}
-      <section className="py-14 md:py-24 bg-warm-white">
-        <div className="container max-w-3xl">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 md:gap-12 items-center">
-            <ScrollReveal>
-              <div className="md:col-span-2">
-                <EditableImage
-                  src={about?.ana_photo_url || ""}
-                  alt="Ana González"
-                  storagePath="about_us"
-                  onSave={(url) => update.mutateAsync({ ana_photo_url: url })}
-                  isEditing={isEditingView}
-                  className="aspect-[3/4] rounded-lg overflow-hidden bg-sand-light/40"
-                  imgClassName="w-full h-full object-cover"
-                />
-              </div>
-            </ScrollReveal>
-
-            <div className="md:col-span-3">
-              <ScrollReveal delay={100}>
-                <div className="mb-4">
-                  <EditableText
-                    value={getText('storyTitle', 'about.storyTitle')}
-                    onSave={makeSave('storyTitle')}
+      {/* ── Historia (Diseño Editorial) ────────────────────────────────── */}
+      <section className="py-16 md:py-32 bg-warm-white relative overflow-hidden">
+        {/* Decoración sutil de fondo */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-sand-light/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+        
+        <div className="container max-w-4xl px-6 relative">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
+            
+            {/* Imagen con marco decorativo */}
+            <div className="md:col-span-5 relative">
+              <ScrollReveal>
+                <div className="relative z-10">
+                  <EditableImage
+                    src={about?.ana_photo_url || ""}
+                    alt="Ana González"
+                    storagePath="about_us"
+                    onSave={(url) => update.mutateAsync({ ana_photo_url: url })}
                     isEditing={isEditingView}
-                    as="span" className="text-[10px] font-sans uppercase tracking-widest-plus text-sand-dark block" langLabel={langLabel}
+                    className="aspect-[4/5] rounded-lg overflow-hidden shadow-2xl grayscale-[0.2] hover:grayscale-0 transition-all duration-700"
+                    imgClassName="w-full h-full object-cover"
                   />
                 </div>
-                {["story_p1", "story_p2", "story_p3"].map((field) => (
-                  <EditableText
-                    key={field}
-                    value={getText(field)}
-                    onSave={makeSave(field)}
-                    isEditing={isEditingView}
-                    as="p" className="text-sm text-muted-foreground leading-relaxed mb-4" placeholder="Escribe la historia..." langLabel={langLabel}
-                  />
-                ))}
+                {/* Marco decorativo detrás */}
+                <div className="absolute -bottom-6 -left-6 w-full h-full border border-sand-dark/20 rounded-lg -z-0 hidden md:block" />
               </ScrollReveal>
             </div>
+            
+            {/* Texto con tipografía cuidada */}
+            <div className="md:col-span-7">
+              <ScrollReveal delay={150}>
+                <div className="space-y-6">
+                  <div className="inline-block border-l-2 border-sand-dark pl-4 mb-2">
+                    <EditableText
+                      value={getText('storyTitle', 'about.storyTitle')}
+                      onSave={makeSave('storyTitle')}
+                      isEditing={isEditingView}
+                      as="span" 
+                      className="text-xs font-sans uppercase tracking-[0.2em] text-sand-dark font-semibold block" 
+                      langLabel={langLabel}
+                    />
+                  </div>
+                  
+                  <div className="prose prose-sand max-w-none">
+                    {["story_p1", "story_p2", "story_p3"].map((field) => (
+                      <div key={field} className="mb-6">
+                        <EditableText
+                          value={getText(field)}
+                          onSave={makeSave(field)}
+                          isEditing={isEditingView}
+                          as="p" 
+                          className="text-base md:text-lg text-muted-foreground leading-relaxed font-light italic" 
+                          placeholder="Escribe la historia..." 
+                          langLabel={langLabel}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </ScrollReveal>
+            </div>
+
           </div>
         </div>
       </section>
 
-      {/* ── Valores ──────────────────────────────────────────────────────── */}
-      <section className="py-14 md:py-24">
-        <div className="container max-w-3xl">
+
+      {/* ── Valores (Minimalismo Cálido) ────────────────────────────────── */}
+      <section className="py-20 md:py-32 bg-white">
+        <div className="container max-w-5xl px-6">
           <ScrollReveal>
-            <div className="text-center mb-10 md:mb-14">
+            <div className="text-center mb-16 md:mb-24">
+              <div className="w-12 h-px bg-sand-dark/30 mx-auto mb-6" />
               <EditableText
                 value={getText('valuesTitle', 'about.valuesTitle')}
                 onSave={makeSave('valuesTitle')}
                 isEditing={isEditingView}
-                as="h2" className="font-serif text-2xl md:text-4xl text-foreground inline-block" style={{ lineHeight: "1.1" }} langLabel={langLabel}
+                as="h2" 
+                className="font-serif text-3xl md:text-5xl text-foreground inline-block tracking-tight" 
+                style={{ lineHeight: "1.1" }} 
+                langLabel={langLabel}
               />
             </div>
           </ScrollReveal>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
             {values.map((v, i) => (
-              <ScrollReveal key={v.titleField} delay={i * 120}>
-                <div className="text-center p-6 bg-card rounded-lg shadow-sm">
-                  <v.Icon size={24} className="mx-auto text-sand-dark mb-4" />
-                  <EditableText value={v.title} onSave={makeSave(v.titleField)} isEditing={isEditingView} as="h3" className="font-serif text-base text-foreground mb-2" langLabel={langLabel} />
-                  <EditableText value={v.desc} onSave={makeSave(v.descField)} isEditing={isEditingView} as="p" className="text-xs text-muted-foreground leading-relaxed" langLabel={langLabel} />
+              <ScrollReveal key={v.titleField} delay={i * 150}>
+                <div className="group text-center">
+                  <div className="mb-8 relative inline-block">
+                    <div className="w-20 h-20 rounded-full bg-warm-white flex items-center justify-center group-hover:scale-110 group-hover:bg-sand-light/20 transition-all duration-500 ease-out border border-sand-dark/5">
+                      <v.Icon size={32} className="text-sand-dark" strokeWidth={1.5} />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <EditableText 
+                      value={v.title} 
+                      onSave={makeSave(v.titleField)} 
+                      isEditing={isEditingView} 
+                      as="h3" 
+                      className="font-serif text-xl text-foreground tracking-wide" 
+                      langLabel={langLabel} 
+                    />
+                    <div className="w-8 h-px bg-sand-dark/20 mx-auto" />
+                    <EditableText 
+                      value={v.desc} 
+                      onSave={makeSave(v.descField)} 
+                      isEditing={isEditingView} 
+                      as="p" 
+                      className="text-sm text-muted-foreground leading-relaxed max-w-[240px] mx-auto font-light" 
+                      langLabel={langLabel} 
+                    />
+                  </div>
                 </div>
               </ScrollReveal>
             ))}
@@ -274,37 +323,61 @@ const QuienesSomos = () => {
         </div>
       </section>
 
-      {/* ── Equipo / Ana ─────────────────────────────────────────────────── */}
-      <section className="py-14 md:py-24 bg-warm-white">
-        <div className="container max-w-2xl text-center">
+
+      {/* ── El Alma del Salón (Ana) ─────────────────────────────────────── */}
+      <section className="py-24 md:py-40 bg-warm-white border-y border-sand-dark/5">
+        <div className="container max-w-4xl px-6 text-center">
           <ScrollReveal>
-            <div className="mb-8">
+            <div className="mb-12">
               <EditableText
                 value={getText('teamTitle', 'about.teamTitle')}
                 onSave={makeSave('teamTitle')}
                 isEditing={isEditingView}
-                as="h2" className="font-serif text-2xl md:text-4xl text-foreground inline-block" style={{ lineHeight: "1.1" }} langLabel={langLabel}
+                as="h2" 
+                className="font-serif text-3xl md:text-5xl text-foreground inline-block tracking-tight" 
+                style={{ lineHeight: "1.1" }} 
+                langLabel={langLabel}
               />
             </div>
           </ScrollReveal>
-          <ScrollReveal delay={100}>
-            <div className="inline-block">
-              <div className="w-32 h-32 rounded-full overflow-hidden bg-sand-light/40 mx-auto mb-4 flex items-center justify-center">
-                {about?.ana_photo_url ? (
-                  <img src={about.ana_photo_url} alt="Ana" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="font-serif text-3xl text-sand-dark/30">AG</span>
-                )}
+          
+          <ScrollReveal delay={200}>
+            <div className="relative inline-block group">
+              {/* Círculo decorativo giratorio sutil */}
+              <div className="absolute -inset-4 border border-dashed border-sand-dark/20 rounded-full animate-[spin_20s_linear_infinite] group-hover:border-sand-dark/40 transition-colors" />
+              
+              <div className="relative w-40 h-40 md:w-56 md:h-56 rounded-full p-2 bg-white shadow-xl">
+                <div className="w-full h-full rounded-full overflow-hidden bg-sand-light/20 flex items-center justify-center border border-sand-dark/10">
+                  {about?.ana_photo_url ? (
+                    <img 
+                      src={about.ana_photo_url} 
+                      alt="Ana González" 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                    />
+                  ) : (
+                    <span className="font-serif text-5xl text-sand-dark/30 italic">AG</span>
+                  )}
+                </div>
               </div>
-              <h3 className="font-serif text-lg text-foreground">Ana González</h3>
-              <EditableText
-                value={getText('anaRole', 'about.anaRole')}
-                onSave={makeSave('anaRole')}
-                isEditing={isEditingView}
-                as="p" className="text-xs text-muted-foreground uppercase tracking-widest-plus mt-1 inline-block" langLabel={langLabel}
-              />
+              
+              <div className="mt-10 space-y-2">
+                <h3 className="font-serif text-2xl md:text-3xl text-foreground">Ana González</h3>
+                <div className="flex items-center justify-center gap-3">
+                  <div className="w-8 h-px bg-sand-dark/30" />
+                  <EditableText
+                    value={getText('anaRole', 'about.anaRole')}
+                    onSave={makeSave('anaRole')}
+                    isEditing={isEditingView}
+                    as="p" 
+                    className="text-xs md:text-sm text-sand-dark uppercase tracking-[0.3em] font-medium" 
+                    langLabel={langLabel}
+                  />
+                  <div className="w-8 h-px bg-sand-dark/30" />
+                </div>
+              </div>
             </div>
           </ScrollReveal>
+
 
           {!isEditingView && (
             <ScrollReveal delay={200}>

@@ -47,6 +47,21 @@ export function useCalendarWatchStatus() {
   });
 }
 
+export function useCalendarHealth() {
+  const { user, isAdmin } = useAuth();
+
+  return useQuery({
+    queryKey: ["calendar_health", user?.uid],
+    enabled: !!user && isAdmin,
+    queryFn: async (): Promise<{ status: 'connected' | 'disconnected', error?: string }> => {
+      const response = await fetch(`${API_BASE}/admin/calendar/status`);
+      return parseJsonResponse(response);
+    },
+    staleTime: 60_000, // 1 minuto de cache para no saturar
+  });
+}
+
+
 export function useRegisterCalendarWatch() {
   const { user } = useAuth();
   const queryClient = useQueryClient();

@@ -1,6 +1,8 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { getFirebaseAdminApp } from "@/lib/firebaseAdmin";
+import { registerCalendarWatch } from "@/lib/calendarWebhookSync";
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -27,7 +29,20 @@ export async function GET(request: Request) {
         { merge: true }
       );
       console.log("✅ Refresh Token de Ana guardado en Firebase");
+
+      // 🚀 AUTO-WEBHOOK: Registramos el webhook automáticamente al vincular
+      try {
+        await registerCalendarWatch({
+          calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
+          webhookUrl: `${frontendUrl}/api/webhooks/calendar`,
+        });
+        console.log("✅ Webhook de Google Calendar registrado automáticamente");
+      } catch (webhookErr) {
+        console.error("⚠️ No se pudo registrar el webhook automáticamente:", webhookErr);
+        // No bloqueamos el flujo principal si el webhook falla, ya que el token sí se guardó
+      }
     }
+
 
     // Devolvemos a Ana a su panel con un mensaje de éxito
     return NextResponse.redirect(`${frontendUrl}/?google_sync=success`);

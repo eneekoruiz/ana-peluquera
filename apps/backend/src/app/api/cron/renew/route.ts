@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-
-// 🔥 IMPORTANTE: Necesitamos importar tu función que crea el webhook.
-// Si miras tu archivo `src/lib/calendarWebhookSync.ts` (en tu foto), 
-// debe haber una función ahí para iniciarlo. Descomenta y pon su nombre real:
-// import { startCalendarWatch } from "@/lib/calendarWebhookSync"; 
+import { registerCalendarWatch, readCalendarWatchConfig } from "@/lib/calendarWebhookSync";
 
 export const dynamic = "force-dynamic";
 
@@ -19,14 +15,14 @@ export async function GET(request: Request) {
     // 2. Leer la configuración actual de la base de datos
     const settingsSnap = await db.collection("admin").doc("settings").get();
     const settings = settingsSnap.data() || {};
-    const watchConfig = settings.calendar_watch || {};
+    const watchConfig = readCalendarWatchConfig(settings);
 
-    if (!watchConfig.configured || !watchConfig.expiration) {
+    if (!watchConfig || !watchConfig.expiration) {
       return NextResponse.json({ status: "ignorado", message: "No hay webhook activo que renovar." });
     }
 
     // 3. Calcular cuánto le queda de vida
-    const expirationDate = new Date(watchConfig.expiration);
+    const expirationDate = new Date(Number(watchConfig.expiration)); // Google lo manda en milisegundos
     const now = new Date();
     const daysUntilExpiration = (expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
 
@@ -34,8 +30,11 @@ export async function GET(request: Request) {
     if (daysUntilExpiration <= 2) {
       console.log(`⏳ Webhook caduca en ${daysUntilExpiration.toFixed(1)} días. Renovando...`);
       
-      // 🔥 AQUÍ SE EJECUTA TU FUNCIÓN DE RENOVAR
-      // await startCalendarWatch(); 
+      // 🔥 EJECUTAMOS LA RENOVACIÓN
+      await registerCalendarWatch({
+        calendarId: watchConfig.calendarId,
+        webhookUrl: watchConfig.webhookUrl
+      }); 
 
       return NextResponse.json({ status: "éxito", message: "Webhook renovado automáticamente." });
     }
@@ -50,4 +49,4 @@ export async function GET(request: Request) {
     console.error("❌ Error en el Cron Job de renovación:", error);
     return NextResponse.json({ status: "error", error: "Fallo interno" }, { status: 500 });
   }
-}
+}

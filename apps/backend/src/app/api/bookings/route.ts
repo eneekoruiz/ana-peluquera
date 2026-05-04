@@ -7,6 +7,8 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { z } from 'zod';
+import { isRateLimited, getRateLimitResponse } from '@/lib/rateLimiter';
+
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -24,20 +26,6 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 60;
-
-type RateLimitEntry = {
-  count: number;
-  resetAt: number;
-};
-
-const rateStore: Map<string, RateLimitEntry> =
-  (globalThis as { __bookingsRateStore?: Map<string, RateLimitEntry> }).__bookingsRateStore ||
-  new Map<string, RateLimitEntry>();
-
-(globalThis as { __bookingsRateStore?: Map<string, RateLimitEntry> }).__bookingsRateStore = rateStore;
-
 const bookingSchema = z.object({
   client_name: z.string().trim().min(2).max(120),
   client_email: z.string().trim().email().optional().nullable().or(z.literal('')),
@@ -49,6 +37,7 @@ const bookingSchema = z.object({
   notes: z.string().max(1000).optional(),
   lang: z.enum(['es', 'en', 'eu']).optional(),
 });
+
 
 function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
@@ -72,20 +61,6 @@ function getCorsHeaders(request: Request): Record<string, string> {
   };
 }
 
-function isRateLimited(request: Request, scope: string): boolean {
-  const key = `${scope}:${getClientIp(request)}`;
-  const now = Date.now();
-  const entry = rateStore.get(key);
-
-  if (!entry || now >= entry.resetAt) {
-    rateStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-
-  entry.count += 1;
-  rateStore.set(key, entry);
-  return entry.count > RATE_LIMIT_MAX_REQUESTS;
-}
 
 async function sendCancellationEmail(email: string, name: string, date: string, time: string, lang: string) {
   const t = {
@@ -152,9 +127,10 @@ export async function OPTIONS(request: Request) {
 
 export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
-  if (isRateLimited(request, 'bookings-get')) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' }, { status: 429, headers });
+  if (isRateLimited(request, 'bookings-access', 60)) {
+    return getRateLimitResponse();
   }
+
 
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date');
@@ -168,7 +144,11 @@ export async function GET(request: Request) {
     const start = dayjs.tz(`${date}T00:00:00`, TZ).toDate();
     const end = dayjs.tz(`${date}T23:59:59`, TZ).subtract(1, 'ms').toDate();
     
-    const { busy, rawEventIds } = await getBusySlots({ start, end });
+    const { busy, rawEventIds } = await getBusySlots({ start, end }).catch(err => {
+      if (err.message === "CALENDAR_DISCONNECTED") throw new Error("MAINTENANCE_MODE");
+      throw err;
+    });
+
 
     const googleEventIds = new Set(rawEventIds);
     const cleanWebBookings = [];
@@ -209,15 +189,21 @@ export async function GET(request: Request) {
 
     return NextResponse.json([...cleanWebBookings, ...googleBlocks], { status: 200, headers });
   } catch (error: any) {
+    console.error("❌ Error en GET /api/bookings:", error.message);
+    if (error.message === "MAINTENANCE_MODE") {
+      return NextResponse.json({ error: "MAINTENANCE_MODE" }, { status: 503, headers });
+    }
     return NextResponse.json({ error: "Error interno" }, { status: 500, headers });
   }
+
 }
 
 export async function POST(request: Request) {
   const headers = getCorsHeaders(request);
-  if (isRateLimited(request, 'bookings-post')) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' }, { status: 429, headers });
+  if (isRateLimited(request, 'bookings-post', 10)) {
+    return getRateLimitResponse();
   }
+
 
   try {
     const body = await request.json();
@@ -234,15 +220,20 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201, headers });
   } catch (error: any) {
+    if (error.message === "MAINTENANCE_MODE") {
+      return NextResponse.json({ error: "MAINTENANCE_MODE" }, { status: 503, headers });
+    }
     return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500, headers });
   }
+
 }
 
 export async function DELETE(request: Request) {
   const headers = getCorsHeaders(request);
-  if (isRateLimited(request, 'bookings-delete')) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo en un minuto.' }, { status: 429, headers });
+  if (isRateLimited(request, 'bookings-delete', 20)) {
+    return getRateLimitResponse();
   }
+
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');

@@ -1,5 +1,9 @@
 // src/lib/scheduler.ts
 
+const LEAD_TIME_MINUTES = 120; // 2 horas de antelación mínima
+const BUFFER_MINUTES = 0;    // Sin margen entre citas por petición del usuario
+
+
 interface WorkDay {
   dayId: number;
   isActive: boolean;
@@ -51,13 +55,16 @@ const isWithinWorkingHours = (schedule: WorkDay, startTimeMin: number, endTimeMi
 
 const isEmployeeFree = (employeeId: string, requiredPhases: {p1: Phase, p2: Phase | null, p3: Phase | null}, dayBookings: any[], schedule: WorkDay) => {
   
-  // 1. ¿Cabe el servicio entero dentro de su horario laboral (antes de irse a casa)?
+  // 1. ¿Cabe el servicio entero (incluyendo buffer) dentro de su horario laboral?
   const serviceStart = requiredPhases.p1.start;
-  const serviceEnd = requiredPhases.p3 ? requiredPhases.p3.end : (requiredPhases.p2 ? requiredPhases.p2.end : requiredPhases.p1.end);
+  const serviceEndWithoutBuffer = requiredPhases.p3 ? requiredPhases.p3.end : (requiredPhases.p2 ? requiredPhases.p2.end : requiredPhases.p1.end);
+  const serviceEndWithBuffer = serviceEndWithoutBuffer + BUFFER_MINUTES;
+
   
-  if (!isWithinWorkingHours(schedule, serviceStart, serviceEnd)) {
-    return false; // El servicio termina cuando el salón ya está cerrado
+  if (!isWithinWorkingHours(schedule, serviceStart, serviceEndWithoutBuffer)) {
+    return false; // El servicio termina cuando el salón ya está cerrado (permitimos que el buffer caiga fuera del horario)
   }
+
 
   // 2. Comprobamos los choques con eventos y Google Calendar
   const employeeBookings = dayBookings.filter(b => 
@@ -77,10 +84,29 @@ const isEmployeeFree = (employeeId: string, requiredPhases: {p1: Phase, p2: Phas
       if (requiredPhases.p2 && isOverlap(requiredPhases.p2, totalBlock)) return false;
       if (requiredPhases.p3 && isOverlap(requiredPhases.p3, totalBlock)) return false;
     } else {
-      const workBlock = { start: bStart, end: bEnd };
-      if (isOverlap(requiredPhases.p1, workBlock)) return false;
-      if (requiredPhases.p3 && isOverlap(requiredPhases.p3, workBlock)) return false;
+      // 🚀 MEJORA: Si la cita existente tiene fases, solo chocamos con sus partes de TRABAJO
+      const bP1 = Number(booking.phase1_min || booking.phase1Min || 0);
+      const bP3 = Number(booking.phase3_min || booking.phase3Min || 0);
+
+      if (bP1 > 0 || bP3 > 0) {
+        // La cita tiene fases: Chocamos con P1 y con P3 (con sus buffers)
+        const workP1 = { start: bStart, end: bStart + bP1 + BUFFER_MINUTES };
+        const workP3 = { start: bEnd - bP3, end: bEnd + BUFFER_MINUTES };
+
+        if (isOverlap(requiredPhases.p1, workP1)) return false;
+        if (isOverlap(requiredPhases.p1, workP3)) return false;
+        if (requiredPhases.p3) {
+          if (isOverlap(requiredPhases.p3, workP1)) return false;
+          if (isOverlap(requiredPhases.p3, workP3)) return false;
+        }
+      } else {
+        // Cita sólida (sin fases)
+        const workBlock = { start: bStart, end: bEnd + BUFFER_MINUTES };
+        if (isOverlap(requiredPhases.p1, workBlock)) return false;
+        if (requiredPhases.p3 && isOverlap(requiredPhases.p3, workBlock)) return false;
+      }
     }
+
   }
   return true; 
 };
@@ -110,7 +136,8 @@ export const calculateAvailability = (
 
   // Filtramos a los trabajadores que: Saben hacer el servicio y hoy es su día de trabajo
   const validStaff = employees.filter(e => {
-    if (!e.skills.includes(serviceCat)) return false;
+    const employeeSkills = e.skills.map(s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    if (!employeeSkills.includes(serviceCat)) return false;
     // Comprobamos si tiene un horario activo para hoy
     const todaySchedule = e.schedule?.find(d => d.dayId === dayOfWeek);
     if (!todaySchedule || !todaySchedule.isActive) return false;
@@ -120,11 +147,12 @@ export const calculateAvailability = (
   for (const slot of allSlots) {
     const slotStart = timeToMinutes(slot);
     
-    // Si la hora ya ha pasado hoy, la tachamos
-    if (isToday && slotStart <= currentMinutes) {
+    // Si la hora ya ha pasado hoy (o falta poco), la tachamos
+    if (isToday && slotStart <= (currentMinutes + LEAD_TIME_MINUTES)) {
       occupied.add(slot);
       continue;
     }
+
 
     const reqPhases = {
       p1: { start: slotStart, end: slotStart + cP1 },
