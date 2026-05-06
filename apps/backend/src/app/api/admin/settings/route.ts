@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
+import { requireAdminRequest } from '@/lib/auth';
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
   .split(',')
@@ -24,10 +25,14 @@ export async function OPTIONS(request: Request) {
 
 /**
  * GET: Devuelve la configuración global del admin (como el email oficial)
- * 🔒 PROTECCIÓN: Esta ruta está protegida por middleware (/api/admin/*)
+ * 🛡️ DEFENSA EN PROFUNDIDAD: Validamos admin tanto en middleware como en el handler.
  */
 export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
+  
+  // 🔐 Verificación de administrador (Doble capa de seguridad)
+  const auth = await requireAdminRequest(request);
+  if (!auth.authorized) return auth.response;
 
   try {
     const db = getFirebaseAdminApp().firestore();
@@ -42,7 +47,6 @@ export async function GET(request: Request) {
 
     const data = adminDoc.data();
 
-    // Solo devolvemos datos si el middleware ha validado el token de admin
     return NextResponse.json({
       email: data?.email,
     }, { 

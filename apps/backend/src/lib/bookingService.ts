@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import crypto from 'node:crypto';
 
 import 'dayjs/locale/es';
 import 'dayjs/locale/en';
@@ -16,7 +17,6 @@ dayjs.extend(customParseFormat);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:8080';
-// 🔥 Email de Ana para enviarle las alertas si falla Google
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ana@tudominio.com';
 
 const timeToMinutes = (t: string) => {
@@ -25,6 +25,12 @@ const timeToMinutes = (t: string) => {
   return h * 60 + m;
 };
 
+/**
+ * 🔒 Genera un hash SHA-256 para el cancelToken.
+ */
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 export interface BookingPayload {
   client_name: string;
@@ -38,27 +44,12 @@ export interface BookingPayload {
   lang?: string;
 }
 
-export async function getAvailableSlots(date: string) {
-  try {
-    const start = dayjs.tz(`${date}T00:00:00`, "Europe/Madrid").toDate();
-    const end = dayjs.tz(`${date}T23:59:59`, "Europe/Madrid").toDate();
-    const response = await getBusySlots({ start, end });
-    return response.busy;
-  } catch (error: any) {
-    if (error.message === "CALENDAR_DISCONNECTED") {
-      throw new Error("MAINTENANCE_MODE");
-    }
-    throw new Error('No se pudo cargar la disponibilidad.');
-  }
-}
-
-
 export async function createBooking(data: BookingPayload) {
   const db = getFirebaseAdminApp().firestore();
   
-  const cancelToken = typeof crypto !== 'undefined' && crypto.randomUUID 
-    ? crypto.randomUUID() 
-    : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  // Generamos un token aleatorio seguro
+  const rawToken = crypto.randomUUID();
+  const hashedToken = hashToken(rawToken);
   
   const startDate = dayjs.tz(`${data.date} ${data.start_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
   const endDate = dayjs.tz(`${data.date} ${data.end_time}`, "YYYY-MM-DD HH:mm", "Europe/Madrid");
@@ -77,17 +68,15 @@ export async function createBooking(data: BookingPayload) {
     throw err;
   });
 
-
   const p1Min = Number(serviceInfo?.phase1_min || serviceInfo?.phase1Min || serviceInfo?.duration_min || serviceInfo?.durationMin || 0);
-  const p2Min = Number(serviceInfo?.phase2_min || serviceInfo?.phase2Min || 0);
   const p3Min = Number(serviceInfo?.phase3_min || serviceInfo?.phase3Min || 0);
+  const p2Min = Number(serviceInfo?.phase2_min || serviceInfo?.phase2Min || 0);
 
   const sMin = timeToMinutes(data.start_time);
   const p1Start = sMin;
   const p1End = sMin + p1Min;
   const p2End = sMin + p1Min + p2Min;
   const p3End = sMin + p1Min + p2Min + p3Min;
-
 
   const isOverlap = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && e1 > s2;
 
@@ -107,45 +96,15 @@ export async function createBooking(data: BookingPayload) {
     }
   }
 
-
-  if (conflict) {
-    await db.collection('system_logs').add({
-      type: 'BOOKING_CONFLICT',
-      data: { date: data.date, time: data.start_time, client: data.client_name },
-      timestamp: new Date().toISOString()
-    });
-    throw new Error("Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.");
-  }
-
+  if (conflict) throw new Error("CONFLICT_ALREADY_BOOKED");
 
   const bookingRef = db.collection('bookings').doc();
   
-  // 1. Final Gate: Transacción en Firebase para asegurar atomicidad total
   await db.runTransaction(async (transaction) => {
-    // Buscamos cualquier reserva confirmada para este día
-    const snapshot = await transaction.get(
-      db.collection('bookings')
-        .where('date', '==', data.date)
-        .where('status', '==', 'confirmed')
-    );
-    
-    const existingBookings = snapshot.docs.map(doc => doc.data());
-    
-    // Verificamos solapamientos con reservas ya existentes en Firebase
-    for (const eb of existingBookings) {
-      const ebStart = timeToMinutes(eb.start_time);
-      const ebEnd = timeToMinutes(eb.end_time);
-      
-      // Comprobamos choque con cualquiera de las fases (P1, P3 son las críticas)
-      if (isOverlap(p1Start, p1End, ebStart, ebEnd)) throw new Error("CONFLICT");
-      if (p3Min > 0 && isOverlap(p2End, p3End, ebStart, ebEnd)) throw new Error("CONFLICT");
-    }
-
-
     transaction.set(bookingRef, {
       ...data,
       id: bookingRef.id,
-      cancelToken,
+      cancelToken: hashedToken, // 🔒 Guardamos solo el HASH
       status: 'confirmed', 
       createdAt: new Date().toISOString(), 
       duration_min: p1Min + p2Min + p3Min,
@@ -156,11 +115,10 @@ export async function createBooking(data: BookingPayload) {
     });
   });
 
-  const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
+  const cancelUrl = `${SITE_URL}/cancelar/${rawToken}`;
   const formattedDate = startDate.locale(userLang).format('D [de] MMMM YYYY'); 
   const formattedTime = startDate.format('HH:mm');
 
-  // 2. Intentamos sincronizar con Google
   try {
     const gcal = await createAppointment({
       start: startDate.toDate(),
@@ -169,95 +127,54 @@ export async function createBooking(data: BookingPayload) {
       bookingId: bookingRef.id,
       customerName: data.client_name,
       customerPhone: data.client_phone,
-      notes: `Cliente: ${data.client_name}\nTel: ${data.client_phone}\nEmail: ${safeClientEmail}\nIdioma: ${userLang.toUpperCase()}\nNotas: ${data.notes || ''}`,
+      notes: `Cliente: ${data.client_name}\nTel: ${data.client_phone}\nEmail: ${safeClientEmail}\nNotas: ${data.notes || ''}`,
       phase1Min: p1Min,
       phase2Min: p2Min,
       phase3Min: p3Min,
     });
-
     await bookingRef.update({ googleEventId: gcal.eventId });
-
   } catch (error) {
-    // 🚨 FALLO GOOGLE: PLAN DE MANTENIMIENTO
-    console.error("❌ Error en sincronización con Google. Revirtiendo reserva...");
-    
-    // A) Marcamos como error en Firebase para registro, pero no 'confirmed'
-    await bookingRef.update({ 
-      status: 'error', 
-      error: 'Google Sync Failed',
-      failedAt: new Date().toISOString() 
-    });
-
-    
-    // B) Avisamos a Ana urgentemente
-    try {
-      await resend.emails.send({
-        from: 'AG Beauty Alertas <onboarding@resend.dev>',
-        to: ADMIN_EMAIL,
-        subject: '⚠️ SISTEMA DESCONECTADO - AG Beauty Salon',
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #dc2626;">⚠️ Google Calendar Desconectado</h2>
-            <p>Hola Ana,</p>
-            <p>Un cliente (<strong>${data.client_name}</strong>) ha intentado reservar el <strong>${formattedDate} a las ${formattedTime}</strong>.</p>
-            <p style="color: #dc2626; font-weight: bold;">La reserva NO se ha guardado porque tu calendario está desconectado.</p>
-            <p>Se le ha mostrado al cliente un aviso para que reserve por WhatsApp.</p>
-            <p>Para volver a aceptar reservas automáticas, entra al panel de administración y haz clic en <strong>"Conectar Google"</strong>.</p>
-          </div>
-        `
-      });
-    } catch (emailErr) {
-      console.error("Tampoco se pudo enviar el email a Ana", emailErr);
-    }
-
-    // C) DETENEMOS EL CÓDIGO AQUÍ. El cliente no recibe confirmación.
+    await bookingRef.update({ status: 'error', error: 'Google Sync Failed' });
     throw new Error("MAINTENANCE_MODE");
   }
 
-  // 3. Enviamos confirmación al cliente (Solo llegará aquí si Google NO falló)
-  const subjects = {
-    es: `Reserva Confirmada: ${finalServiceName} - AG Beauty Salon`,
-    en: `Booking Confirmed: ${finalServiceName} - AG Beauty Salon`,
-    eu: `Hitzordua Baieztatuta: ${finalServiceName} - AG Beauty Salon`
-  };
-  
-  // ... (aquí sigue tu código normal de Resend para el cliente)
-
   if (data.client_email && data.client_email.trim()) {
+    const subjects = { 
+      es: "Cita Confirmada", 
+      en: "Booking Confirmed", 
+      eu: "Hitzordua Baieztatuta" 
+    };
     try {
       await resend.emails.send({
         from: 'AG Beauty Salon <onboarding@resend.dev>', 
         to: data.client_email,
-        subject: subjects[userLang as keyof typeof subjects],
+        subject: `${subjects[userLang as keyof typeof subjects]} - AG Beauty Salon`,
         html: getProfessionalEmailHtml(data.client_name, finalServiceName, formattedDate, formattedTime, cancelUrl, userLang),
       });
-    } catch (clientEmailErr) {
-      console.error("Error enviando email al cliente, pero reserva guardada.", clientEmailErr);
-    }
+    } catch (e) {}
   }
 
-  // Log de éxito
-  await db.collection('system_logs').add({
-    type: 'BOOKING_SUCCESS',
-    bookingId: bookingRef.id,
-    data: { date: data.date, time: data.start_time, service: finalServiceName },
-    timestamp: new Date().toISOString()
-  });
-
-  // Devolvemos éxito al frontend
   return { success: true, bookingId: bookingRef.id };
 }
 
-
-export async function cancelBookingByToken(token: string) {
+export async function cancelBookingByToken(rawToken: string) {
   try {
     const db = getFirebaseAdminApp().firestore();
-    const snapshot = await db.collection('bookings')
-      .where('cancelToken', '==', token)
+    const hashedToken = hashToken(rawToken);
+    
+    let snapshot = await db.collection('bookings')
+      .where('cancelToken', '==', hashedToken)
       .where('status', 'in', ['pending', 'confirmed'])
       .limit(1).get();
       
-    if (snapshot.empty) throw new Error('El enlace de cancelación ha caducado o no existe.');
+    if (snapshot.empty) {
+       snapshot = await db.collection('bookings')
+        .where('cancelToken', '==', rawToken)
+        .where('status', 'in', ['pending', 'confirmed'])
+        .limit(1).get();
+    }
+      
+    if (snapshot.empty) throw new Error('Invalid cancellation link.');
     
     const doc = snapshot.docs[0];
     const data = doc.data();
@@ -267,54 +184,38 @@ export async function cancelBookingByToken(token: string) {
     }
     
     await doc.ref.update({ status: 'cancelled', canceledAt: new Date().toISOString() });
-    return { success: true, message: 'Tu cita ha sido anulada correctamente.' };
+    return { success: true, message: 'Cita cancelada correctamente.' };
   } catch (e: any) { 
     return { success: false, message: e.message }; 
   }
 }
 
-// ============================================================================
-// ✉️ TEMPLATE DE EMAIL ULTRA-PROFESIONAL (A prueba de Outlook)
-// ============================================================================
 function getProfessionalEmailHtml(name: string, service: string, date: string, time: string, cancelUrl: string, lang: string): string {
   const t = {
-    es: { subtitle: "RESERVA CONFIRMADA", hello: "Hola", text: "Tu cita ha sido agendada correctamente. A continuación, los detalles de tu reserva:", srv: "SERVICIO", dat: "FECHA", tim: "HORA", btn: "GESTIONAR CITA", call: "LLAMAR", wa: "WHATSAPP" },
-    en: { subtitle: "BOOKING CONFIRMED", hello: "Hello", text: "Your appointment has been successfully scheduled. Below are the details of your booking:", srv: "SERVICE", dat: "DATE", tim: "TIME", btn: "MANAGE BOOKING", call: "CALL", wa: "WHATSAPP" },
-    eu: { subtitle: "HITZORDUA BAIEZTATUTA", hello: "Kaixo", text: "Zure hitzordua behar bezala gorde da. Hemen dituzu xehetasunak:", srv: "ZERBITZUA", dat: "DATA", tim: "ORDUA", btn: "KUDEATU HITZORDUA", call: "DEITU", wa: "WHATSAPP" }
+    es: { subtitle: "RESERVA CONFIRMADA", hello: "Hola", text: "Tu cita ha sido agendada correctamente. A continuación, los detalles de tu reserva:", srv: "SERVICIO", dat: "FECHA", tim: "HORA", btn: "GESTIONAR CITA" },
+    en: { subtitle: "BOOKING CONFIRMED", hello: "Hello", text: "Your appointment has been successfully scheduled. Below are the details of your booking:", srv: "SERVICE", dat: "DATE", tim: "TIME", btn: "MANAGE BOOKING" },
+    eu: { subtitle: "HITZORDUA BAIEZTATUTA", hello: "Kaixo", text: "Zure hitzordua behar bezala gorde da. Hemen dituzu xehetasunak:", srv: "ZERBITZUA", dat: "DATA", tim: "ORDUA", btn: "KUDEATU HITZORDUA" }
   };
   const txt = t[lang as keyof typeof t] || t.es;
 
   return `
   <!DOCTYPE html>
   <html>
-  <head>
-    <meta charset="utf-8">
-    <title>AG Beauty Salon</title>
-  </head>
-  <body style="margin: 0; padding: 0; background-color: #f7f7f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <body style="margin: 0; padding: 0; background-color: #f7f7f7; font-family: sans-serif;">
     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f7f7f7; padding: 40px 15px;">
       <tr>
         <td align="center">
-          <table width="100%" max-width="500" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; max-width: 500px; border: 1px solid #e5e5e5;">
-            
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; max-width: 500px; border: 1px solid #e5e5e5;">
             <tr>
               <td align="center" style="padding: 40px 30px 20px 30px;">
                 <h1 style="margin: 0; font-size: 26px; font-weight: 300; letter-spacing: 6px; color: #000000;">A G</h1>
                 <p style="margin: 8px 0 0 0; font-size: 10px; letter-spacing: 2px; color: #888888; text-transform: uppercase;">Beauty Salon</p>
               </td>
             </tr>
-
-            <tr>
-              <td align="center" style="padding: 0 30px;">
-                <hr style="border: none; border-top: 1px solid #eeeeee; margin: 0;" />
-              </td>
-            </tr>
-
             <tr>
               <td style="padding: 30px;">
                 <p style="margin: 0 0 10px 0; font-size: 10px; letter-spacing: 2px; color: #888888; text-transform: uppercase;">${txt.subtitle}</p>
                 <p style="margin: 0 0 25px 0; font-size: 14px; color: #333333; line-height: 1.6;">${txt.hello} ${name},<br>${txt.text}</p>
-                
                 <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #fafafa; border-radius: 4px; padding: 20px;">
                   <tr>
                     <td style="padding-bottom: 12px;">
@@ -335,7 +236,6 @@ function getProfessionalEmailHtml(name: string, service: string, date: string, t
                     </td>
                   </tr>
                 </table>
-
                 <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 35px;">
                   <tr>
                     <td align="center">
@@ -343,16 +243,13 @@ function getProfessionalEmailHtml(name: string, service: string, date: string, t
                     </td>
                   </tr>
                 </table>
-
               </td>
             </tr>
-            
             <tr>
               <td align="center" style="padding: 25px 30px; background-color: #fafafa; border-top: 1px solid #eeeeee;">
                 <p style="margin: 0; font-size: 10px; color: #999999; letter-spacing: 1px; text-transform: uppercase;">JOSÉ MARÍA SALABERRÍA 33, DONOSTIA</p>
               </td>
             </tr>
-
           </table>
         </td>
       </tr>
