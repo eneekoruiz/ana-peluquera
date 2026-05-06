@@ -10,14 +10,21 @@ const deleteSchema = z.object({
 /**
  * POST /api/admin/delete-asset
  * Borra una imagen de Cloudinary usando el API Secret del servidor.
+ * 
+ * 🔒 SEGURIDAD:
+ * - Requiere Authorization: Bearer <firebaseIdToken>
+ * - Solo accesible por administradores configurados en Firestore.
+ * - Firma generada en servidor para no exponer API Secret.
  */
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Missing token" }, { status: 401 });
     }
     const token = authHeader.split("Bearer ")[1];
+    
+    // Verifica token y rol de admin (throws if invalid)
     await requireAdminFromIdToken(token);
 
     const body = await request.json();
@@ -39,7 +46,8 @@ export async function POST(request: Request) {
 
     const timestamp = Math.round(new Date().getTime() / 1000).toString();
     
-    // Construcción limpia de la firma para evitar problemas de codificación visual como &times
+    // Generación de firma SHA-1 (exigida por Cloudinary)
+    // Se usa un objeto para asegurar el orden alfabético y evitar problemas de codificación.
     const params: Record<string, string> = {
       public_id: publicId,
       timestamp: timestamp,
@@ -66,14 +74,14 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      return NextResponse.json({ error: 'Cloudinary error' }, { status: response.status });
+      return NextResponse.json({ error: 'Failed to delete from Cloudinary' }, { status: response.status });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Error in delete-asset:', error);
+    console.error('Error in delete-asset:', error.message);
     const status = error.code === 'FORBIDDEN' ? 403 : 500;
-    const msg = error.code === 'FORBIDDEN' ? 'Forbidden' : 'Internal server error';
+    const msg = error.code === 'FORBIDDEN' ? 'Forbidden: Access denied' : 'Internal server error';
     return NextResponse.json({ error: msg }, { status });
   }
 }

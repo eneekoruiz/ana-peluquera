@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
@@ -24,7 +24,7 @@ export async function OPTIONS(request: Request) {
 
 /**
  * GET: Devuelve la configuración global del admin (como el email oficial)
- * Protegido por middleware (/api/admin/*)
+ * 🔒 PROTECCIÓN: Esta ruta está protegida por middleware (/api/admin/*)
  */
 export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
@@ -35,13 +35,14 @@ export async function GET(request: Request) {
 
     if (!adminDoc.exists) {
       return NextResponse.json(
-        { error: 'Configuración no encontrada' }, 
+        { error: 'Configuration not found' }, 
         { status: 404, headers }
       );
     }
 
     const data = adminDoc.data();
 
+    // Solo devolvemos datos si el middleware ha validado el token de admin
     return NextResponse.json({
       email: data?.email,
     }, { 
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
     });
 
   } catch (error) {
-    console.error("❌ Error en GET settings:", error);
+    console.error("❌ Error in GET settings:", error);
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500, headers }

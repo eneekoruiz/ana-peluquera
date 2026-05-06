@@ -21,7 +21,7 @@ const PERSONAL_PHONE = "34645006964";
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_SITE_URL || '')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -38,15 +38,6 @@ const bookingSchema = z.object({
   lang: z.enum(['es', 'en', 'eu']).optional(),
 });
 
-
-function getClientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  return request.headers.get('x-real-ip') || 'unknown';
-}
-
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('origin') || '';
   const allowOrigin = ALLOWED_ORIGINS.includes(origin)
@@ -57,7 +48,7 @@ function getCorsHeaders(request: Request): Record<string, string> {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    Vary: 'Origin',
+    'Vary': 'Origin',
   };
 }
 
@@ -144,15 +135,29 @@ export async function GET(request: Request) {
     return getRateLimitResponse();
   }
 
-
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date');
   if (!date) return NextResponse.json({ error: 'Falta fecha' }, { status: 400, headers });
 
   try {
     const db = getFirebaseAdminApp().firestore();
-    const fbSnap = await db.collection('bookings').where('date', '==', date).get();
-    const firebaseBookings = fbSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+    const fbSnap = await db.collection('bookings')
+      .where('date', '==', date)
+      .where('status', '==', 'confirmed')
+      .get();
+    
+    // 🛡️ SEGURIDAD: No devolvemos el cancelToken ni datos privados en la lista pública
+    const firebaseBookings = fbSnap.docs.map(doc => {
+      const data = doc.data();
+      return { 
+        id: doc.id,
+        date: data.date,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        service_id: data.service_id,
+        // No enviamos client_email, phone ni cancelToken
+      };
+    });
 
     const start = dayjs.tz(`${date}T00:00:00`, TZ).toDate();
     const end = dayjs.tz(`${date}T23:59:59`, TZ).subtract(1, 'ms').toDate();
@@ -161,32 +166,6 @@ export async function GET(request: Request) {
       if (err.message === "CALENDAR_DISCONNECTED") throw new Error("MAINTENANCE_MODE");
       throw err;
     });
-
-
-    const googleEventIds = new Set(rawEventIds);
-    const cleanWebBookings = [];
-
-    for (const booking of firebaseBookings) {
-      const minutesSinceCreation = dayjs().diff(dayjs(booking.createdAt || booking.created_at), 'minute');
-      const existsInGoogle = booking.googleEventId && googleEventIds.has(booking.googleEventId);
-
-      if (booking.googleEventId && !existsInGoogle && minutesSinceCreation > 10) {
-        console.log(`🧹 Auto-limpieza activa: Borrando ${booking.id} y enviando email...`);
-        
-        if (booking.client_email) {
-          await sendCancellationEmail(
-            booking.client_email, 
-            booking.client_name || booking.customerName, 
-            booking.date, 
-            booking.start_time || booking.startTime,
-            booking.lang || 'es'
-          );
-        }
-        await db.collection('bookings').doc(booking.id).delete();
-      } else {
-        cleanWebBookings.push(booking);
-      }
-    }
 
     const googleBlocks = busy
       .filter(slot => slot.start.format('YYYY-MM-DD') === date)
@@ -200,7 +179,7 @@ export async function GET(request: Request) {
         duration_min: slot.end.diff(slot.start, 'minute')
       }));
 
-    return NextResponse.json([...cleanWebBookings, ...googleBlocks], { status: 200, headers });
+    return NextResponse.json([...firebaseBookings, ...googleBlocks], { status: 200, headers });
   } catch (error: any) {
     console.error("❌ Error en GET /api/bookings:", error.message);
     if (error.message === "MAINTENANCE_MODE") {
@@ -208,7 +187,6 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ error: "Error interno" }, { status: 500, headers });
   }
-
 }
 
 export async function POST(request: Request) {
@@ -216,7 +194,6 @@ export async function POST(request: Request) {
   if (await isRateLimited(request, 'bookings-post', 10)) {
     return getRateLimitResponse();
   }
-
 
   try {
     const body = await request.json();
@@ -238,7 +215,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500, headers });
   }
-
 }
 
 export async function DELETE(request: Request) {
@@ -263,21 +239,18 @@ export async function DELETE(request: Request) {
     
     const data = docSnap.data() as any;
 
-    // 🛡️ PROTECCIÓN DE BORRADO:
     let isAuthorized = false;
 
-    // Caso A: Es administrador (token Bearer válido)
+    // A) Administrador autenticado
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
         const token = authHeader.split("Bearer ")[1];
         await requireAdminFromIdToken(token);
         isAuthorized = true;
-      } catch (err) {
-        console.warn("Intento de borrado admin fallido.");
-      }
+      } catch (err) {}
     }
 
-    // Caso B: Es cliente con cancelToken válido
+    // B) Cliente con token de cancelación válido
     if (!isAuthorized && cancelToken && data.cancelToken === cancelToken) {
       isAuthorized = true;
     }
@@ -286,7 +259,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403, headers });
     }
 
-    // Proceder con cancelación
     if (data.client_email) {
         await sendCancellationEmail(data.client_email, data.client_name || data.customerName, data.date, data.start_time || data.startTime, data.lang || 'es');
     }

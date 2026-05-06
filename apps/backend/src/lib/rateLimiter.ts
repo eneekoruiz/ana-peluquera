@@ -4,8 +4,8 @@ import { kv } from '@vercel/kv';
 const WINDOW_MS = 60_000;
 
 /**
- * 🚀 Rate Limiter distribuido usando Vercel KV (Redis)
- * Si no hay KV configurado, hace fallback a memoria (menos fiable en serverless)
+ * 🚀 PRODUCTION RATE LIMITER
+ * Utiliza Vercel KV (Redis) para persistencia entre instancias serverless.
  */
 export async function isRateLimited(request: Request, scope: string, maxRequests = 30): Promise<boolean> {
   const forwarded = request.headers.get('x-forwarded-for');
@@ -14,19 +14,21 @@ export async function isRateLimited(request: Request, scope: string, maxRequests
   const key = `ratelimit:${scope}:${ip}`;
   
   try {
-    // Si estamos en Vercel con KV habilitado
+    // Si KV está configurado (Producción)
     if (process.env.KV_URL) {
       const current = await kv.incr(key);
       if (current === 1) {
         await kv.expire(key, 60);
       }
       return current > maxRequests;
+    } else {
+      console.warn("⚠️ Vercel KV no detectado. Usando fallback de memoria (Inseguro en producción).");
     }
   } catch (err) {
-    console.error("⚠️ Error en Vercel KV, usando fallback de memoria:", err);
+    console.error("❌ Error en Vercel KV:", err);
   }
 
-  // FALLBACK: Memoria (solo para desarrollo o fallos de KV)
+  // FALLBACK: Memoria (solo para desarrollo local)
   return isRateLimitedInMemory(key, maxRequests);
 }
 
