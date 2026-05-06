@@ -6,15 +6,13 @@ import { processCalendarWebhook } from "@/lib/calendarWebhookSync";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const headers = {
-  "Access-Control-Allow-Origin": "*",
-  "Content-Type": "application/json",
-};
-
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers });
-}
-
+/**
+ * POST /api/webhooks/calendar
+ * Recibe notificaciones push de Google Calendar.
+ * 🔒 SEGURIDAD:
+ * - No requiere CORS (es comunicación servidor-a-servidor).
+ * - Verifica Channel ID, Resource ID y Secret Token de Google.
+ */
 export async function POST(request: Request) {
   const channelId = request.headers.get("X-Goog-Channel-ID");
   const resourceId = request.headers.get("X-Goog-Resource-ID");
@@ -22,35 +20,45 @@ export async function POST(request: Request) {
   const channelToken = request.headers.get("X-Goog-Channel-Token");
 
   if (!channelId || !resourceId || !resourceState) {
-    return NextResponse.json({ error: "Missing Google webhook headers" }, { status: 401, headers });
+    return new NextResponse("Missing headers", { status: 400 });
   }
 
-  if (!["sync", "exists", "not_exists"].includes(resourceState)) {
-    return NextResponse.json({ error: "Invalid Google webhook resource state" }, { status: 400, headers });
-  }
-
-  const settingsSnap = await db.collection("admin").doc("settings").get();
-  const watchConfig = readCalendarWatchConfig(settingsSnap.data() as Record<string, unknown> | undefined);
-
-  if (!watchConfig) {
-    return NextResponse.json({ error: "Webhook not configured" }, { status: 401, headers });
-  }
-
-  if (watchConfig.channelId !== channelId || watchConfig.resourceId !== resourceId) {
-    return NextResponse.json({ error: "Webhook channel mismatch" }, { status: 403, headers });
-  }
-
-  if (watchConfig.secretToken && watchConfig.secretToken !== channelToken) {
-    return NextResponse.json({ error: "Webhook token mismatch" }, { status: 403, headers });
-  }
-
+  // Si es un ping de sincronización inicial, respondemos OK
   if (resourceState === "sync") {
-    return NextResponse.json({ ok: true, skipped: true, reason: "sync_handshake" }, { status: 200, headers });
+    return new NextResponse(null, { status: 200 });
   }
 
-  void processCalendarWebhook(request).catch((error) => {
-    console.error("Calendar webhook background processing failed.", error);
-  });
+  try {
+    const settingsSnap = await db.collection("admin").doc("settings").get();
+    const watchConfig = readCalendarWatchConfig(settingsSnap.data());
 
-  return NextResponse.json({ ok: true }, { status: 200, headers });
+    if (!watchConfig) {
+      return new NextResponse("Webhook not configured", { status: 401 });
+    }
+
+    // 🛡️ VALIDACIÓN: El mensaje debe venir del canal y recurso que registramos
+    if (watchConfig.channelId !== channelId || watchConfig.resourceId !== resourceId) {
+      return new NextResponse("Forbidden: Channel mismatch", { status: 403 });
+    }
+
+    // 🛡️ VALIDACIÓN: El token secreto debe coincidir
+    if (watchConfig.secretToken && watchConfig.secretToken !== channelToken) {
+      return new NextResponse("Forbidden: Token mismatch", { status: 403 });
+    }
+
+    // Procesamos el webhook en segundo plano para responder rápido a Google
+    void processCalendarWebhook(request).catch((error) => {
+      console.error("❌ Error procesando webhook en background:", error);
+    });
+
+    return new NextResponse(null, { status: 200 });
+  } catch (error) {
+    console.error("❌ Error en webhook handler:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
+}
+
+// Bloqueamos OPTIONS para no dar pistas
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 });
 }
