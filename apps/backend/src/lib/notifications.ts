@@ -1,29 +1,13 @@
 /**
- * @fileoverview notifications.ts — Sistema de notificaciones dual.
- *
- * Implementa dos canales de notificación:
- * 1. **Email via Resend** — Intento principal. Requiere `RESEND_API_KEY` y un
- * dominio verificado en Resend.
- * 2. **WhatsApp fallback** — Si el email falla o el cliente no tiene email,
- * `buildWhatsAppUrl()` genera un enlace `wa.me/...` con el mensaje
- * pre-cargado para que Ana lo envíe manualmente en un clic.
- *
- * @module notifications
+ * @fileoverview notifications.ts — Sistema de notificaciones dual (Email + WhatsApp).
  */
 
 import { Resend } from "resend";
 
-/** Cliente de Resend. Se inicializa sin clave si la variable no está definida,
- * lo que permite que el módulo cargue sin errores aunque no se use el email. */
 const resend = new Resend(process.env.RESEND_API_KEY || "");
-
-/** URL base del sitio público (para enlaces de cancelación en emails). */
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:8081";
-
-/** Dirección "from" de los correos. Debe coincidir con el dominio verificado en Resend. */
-const FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL || "AG Beauty Salon <citas@anagonzalez.es>";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eneko-ruiz.vercel.app";
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AG Beauty Salon <citas@anagonzalez.es>";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "ana@tudominio.com";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +17,7 @@ export interface ConfirmationEmailParams {
   serviceName: string;
   startTime: string;
   cancelToken: string;
+  lang?: string;
 }
 
 export interface CancellationEmailParams {
@@ -40,14 +25,14 @@ export interface CancellationEmailParams {
   customerName: string;
   serviceName: string;
   startTime: string;
+  lang?: string;
 }
 
-export interface RescheduleEmailParams {
-  to: string;
-  customerName: string;
-  serviceName: string;
-  oldStartTime: string;
-  newStartTime: string;
+export interface AdminAlertParams {
+  clientName: string;
+  date: string;
+  time: string;
+  error: string;
 }
 
 export interface WhatsAppParams {
@@ -55,9 +40,10 @@ export interface WhatsAppParams {
   customerName: string;
   serviceName: string;
   startTime: string;
+  lang?: string;
 }
 
-// ─── Helpers de formato ──────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────
 
 function escapeHtml(text: string): string {
   if (!text) return "";
@@ -69,20 +55,22 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#039;");
 }
 
-function formatDateES(iso: string): string {
-  if (!iso) return "la fecha acordada";
+function formatDateES(iso: string, lang = 'es'): string {
+  if (!iso) return "";
   const d = new Date(iso);
-  const fecha = d.toLocaleDateString("es-ES", {
+  const locale = lang === 'eu' ? 'eu-ES' : lang === 'en' ? 'en-US' : 'es-ES';
+  
+  const fecha = d.toLocaleDateString(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-  const hora = d.toLocaleTimeString("es-ES", {
+  const hora = d.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
-  return `${fecha} a las ${hora}`;
+  return `${fecha} - ${hora}`;
 }
 
 function normalizePhone(phone: string): string {
@@ -92,222 +80,121 @@ function normalizePhone(phone: string): string {
   return `34${cleaned}`;
 }
 
-// ─── Email de confirmación ────────────────────────────────────────────────────
+// ─── Email de Confirmación ────────────────────────────────────────────────────
 
 export async function sendConfirmationEmail(params: ConfirmationEmailParams): Promise<void> {
-    const { to, customerName, serviceName, startTime, cancelToken } = params;
-    const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
-    const dateStr = formatDateES(startTime);
-  
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to,
-      subject: `Reserva confirmada — ${serviceName}`,
-      html: `
-      <!DOCTYPE html>
-      <html lang="es">
-      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f7f5;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="min-width: 100%; background-color: #f9f7f5; padding: 40px 20px;">
-          <tr>
-            <td align="center">
-              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <tr>
-                  <td align="center" style="padding: 40px 0 30px 0; border-bottom: 1px solid #f0ede9;">
-                    <h1 style="font-family: 'Georgia', serif; font-size: 32px; color: #1a1a1a; letter-spacing: 6px; margin: 0;">AG</h1>
-                    <p style="font-size: 10px; color: #9a8b7a; letter-spacing: 3px; text-transform: uppercase; margin: 10px 0 0 0;">Beauty Salon</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 40px 40px 20px 40px;">
-                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${escapeHtml(customerName)}</strong></p>
-                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0 0 30px 0;">Tu reserva ha sido confirmada. Todo está listo para tu visita a nuestro salón.</p>
-                    
-                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fcfbf9; border: 1px solid #f0ede9; border-radius: 4px; padding: 20px;">
-                      <tr>
-                        <td style="padding-bottom: 15px;">
-                          <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Servicio</p>
-                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${escapeHtml(serviceName)}</p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Fecha y Hora</p>
-                          <p style="font-size: 16px; color: #1a1a1a; margin: 0;">${dateStr}</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 0 40px 40px 40px;">
-                    <p style="font-size: 14px; color: #555555; line-height: 1.6; margin: 0 0 30px 0;">
-                      📍 José María Salaberria 33, Donostia<br>
-                      📞 843 67 35 95
-                    </p>
-                    <p style="font-size: 12px; color: #888888; text-align: center; margin: 0 0 15px 0;">¿Necesitas hacer un cambio?</p>
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td align="center">
-                          <a href="${cancelUrl}" style="display: inline-block; padding: 14px 30px; background-color: #1a1a1a; color: #ffffff; text-decoration: none; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; border-radius: 2px;">Anular Cita</a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-              <p style="font-size: 11px; color: #aaaaaa; margin: 20px 0 0 0;">© 2026 AG Beauty Salon. Donostia-San Sebastián.</p>
-            </td>
-          </tr>
-        </table>
-      </body>
-      </html>
-      `,
-    });
+  const { to, customerName, serviceName, startTime, cancelToken, lang = 'es' } = params;
+  const cancelUrl = `${SITE_URL}/cancelar/${cancelToken}`;
+  const dateStr = formatDateES(startTime, lang);
 
-    if (error) {
-       console.error("🔥 ERROR REAL DE RESEND AL CONFIRMAR:", error);
-       throw new Error(`Fallo enviando email de confirmación: ${error.message}`);
-    }
-  }
+  const t = {
+    es: { subject: `Reserva confirmada — ${serviceName}`, subtitle: "RESERVA CONFIRMADA", hello: "Hola", text: "Tu reserva ha sido confirmada. Todo está listo para tu visita.", srv: "SERVICIO", dat: "FECHA Y HORA", btn: "Anular Cita" },
+    en: { subject: `Booking confirmed — ${serviceName}`, subtitle: "BOOKING CONFIRMED", hello: "Hello", text: "Your booking has been confirmed. Everything is ready for your visit.", srv: "SERVICE", dat: "DATE & TIME", btn: "Cancel Booking" },
+    eu: { subject: `Hitzordua baieztatuta — ${serviceName}`, subtitle: "HITZORDUA BAIEZTATUTA", hello: "Kaixo", text: "Zure hitzordua baieztatuta dago. Dena prest dago zure bisitarako.", srv: "ZERBITZUA", dat: "DATA ETA ORDUA", btn: "Hitzordua Utzi" }
+  };
+  const txt = t[lang as keyof typeof t] || t.es;
 
-// ─── Email de cancelación ────────────────────────────────────────────────────
-
-export async function sendCancellationEmail(params: CancellationEmailParams): Promise<void> {
-  const { to, customerName, serviceName, startTime } = params;
-  const dateStr = formatDateES(startTime);
-
-  const { error } = await resend.emails.send({
+  await resend.emails.send({
     from: FROM_EMAIL,
     to,
-    subject: `Cita cancelada — ${serviceName}`,
+    subject: txt.subject,
     html: `
-      <!DOCTYPE html>
-      <html lang="es">
-      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f7f5;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="min-width: 100%; background-color: #f9f7f5; padding: 40px 20px;">
-          <tr>
-            <td align="center">
-              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <tr>
-                  <td align="center" style="padding: 40px 0 30px 0; border-bottom: 1px solid #f0ede9;">
-                    <h1 style="font-family: 'Georgia', serif; font-size: 32px; color: #1a1a1a; letter-spacing: 6px; margin: 0;">AG</h1>
-                    <p style="font-size: 10px; color: #9a8b7a; letter-spacing: 3px; text-transform: uppercase; margin: 10px 0 0 0;">Beauty Salon</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 40px 40px 30px 40px; text-align: center;">
-                    <p style="font-size: 16px; color: #333333; margin: 0 0 15px 0;">Hola, <strong>${escapeHtml(customerName)}</strong></p>
-                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0;">Confirmamos que tu cita para <strong>${escapeHtml(serviceName)}</strong> el <strong>${dateStr}</strong> ha sido cancelada correctamente.</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 0 40px 40px 40px;">
-                    <p style="font-size: 13px; color: #888888; text-align: center; margin: 0 0 20px 0;">Si deseas buscar otro hueco, puedes hacerlo desde nuestra web.</p>
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td align="center">
-                          <a href="${SITE_URL}/reservar" style="display: inline-block; padding: 14px 30px; background-color: #1a1a1a; color: #ffffff; text-decoration: none; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; border-radius: 2px;">Reservar de nuevo</a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-              <p style="font-size: 11px; color: #aaaaaa; margin: 20px 0 0 0;">© 2026 AG Beauty Salon. Donostia-San Sebastián.</p>
-            </td>
-          </tr>
-        </table>
-      </body>
-      </html>
-    `,
+      <div style="font-family: sans-serif; max-width: 500px; margin: auto; padding: 20px; background: #fff; border: 1px solid #eee;">
+        <h1 style="text-align: center; color: #1a1a1a; letter-spacing: 4px;">AG</h1>
+        <p style="text-align: center; color: #9a8b7a; font-size: 10px; text-transform: uppercase;">Beauty Salon</p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p><strong>${txt.hello} ${escapeHtml(customerName)}</strong>,</p>
+        <p>${txt.text}</p>
+        <div style="background: #fcfbf9; padding: 15px; border: 1px solid #f0ede9;">
+          <p><strong>${txt.srv}:</strong> ${escapeHtml(serviceName)}</p>
+          <p><strong>${txt.dat}:</strong> ${dateStr}</p>
+        </div>
+        <p style="text-align: center; margin-top: 30px;">
+          <a href="${cancelUrl}" style="background: #1a1a1a; color: #fff; padding: 12px 25px; text-decoration: none; font-size: 12px; border-radius: 2px;">${txt.btn}</a>
+        </p>
+      </div>
+    `
   });
-
-  if (error) {
-     console.error("🔥 ERROR REAL DE RESEND AL CANCELAR:", error);
-     throw new Error(`Fallo enviando email de cancelación: ${error.message}`);
-  }
 }
 
-export async function sendRescheduleEmail(params: RescheduleEmailParams): Promise<void> {
-  const { to, customerName, serviceName, oldStartTime, newStartTime } = params;
-  const oldDateStr = formatDateES(oldStartTime);
-  const newDateStr = formatDateES(newStartTime);
+// ─── Email de Cancelación ─────────────────────────────────────────────────────
 
-  const { error } = await resend.emails.send({
+export async function sendCancellationEmail(params: CancellationEmailParams): Promise<void> {
+  const { to, customerName, serviceName, startTime, lang = 'es' } = params;
+  const dateStr = formatDateES(startTime, lang);
+
+  const t = {
+    es: { subject: `Cita cancelada — ${serviceName}`, hello: "Hola", text: `Tu cita para ${serviceName} el ${dateStr} ha sido cancelada.` },
+    en: { subject: `Booking cancelled — ${serviceName}`, hello: "Hello", text: `Your booking for ${serviceName} on ${dateStr} has been cancelled.` },
+    eu: { subject: `Hitzordua utzita — ${serviceName}`, hello: "Kaixo", text: `Zure ${serviceName}rako hitzordua (${dateStr}) utzi da.` }
+  };
+  const txt = t[lang as keyof typeof t] || t.es;
+
+  await resend.emails.send({
     from: FROM_EMAIL,
     to,
-    subject: `Cita modificada — ${serviceName}`,
-    html: `
-      <!DOCTYPE html>
-      <html lang="es">
-      <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f9f7f5;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="min-width: 100%; background-color: #f9f7f5; padding: 40px 20px;">
-          <tr>
-            <td align="center">
-              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 500px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                <tr>
-                  <td align="center" style="padding: 40px 0 30px 0; border-bottom: 1px solid #f0ede9;">
-                    <h1 style="font-family: 'Georgia', serif; font-size: 32px; color: #1a1a1a; letter-spacing: 6px; margin: 0;">AG</h1>
-                    <p style="font-size: 10px; color: #9a8b7a; letter-spacing: 3px; text-transform: uppercase; margin: 10px 0 0 0;">Beauty Salon</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 40px 40px 20px 40px;">
-                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${escapeHtml(customerName)}</strong></p>
-                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0 0 25px 0;">Tu cita para <strong>${escapeHtml(serviceName)}</strong> ha sido actualizada. Estos son los nuevos datos:</p>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fcfbf9; border: 1px solid #f0ede9; border-radius: 4px; padding: 20px;">
-                      <tr>
-                        <td style="padding-bottom: 15px;">
-                          <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Anterior</p>
-                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${oldDateStr}</p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Nuevo horario</p>
-                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${newDateStr}</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 0 40px 40px 40px;">
-                    <p style="font-size: 13px; color: #888888; text-align: center; margin: 0;">Si el cambio no te encaja, responde a este correo o vuelve a reservar desde la web.</p>
-                  </td>
-                </tr>
-              </table>
-              <p style="font-size: 11px; color: #aaaaaa; margin: 20px 0 0 0;">© 2026 AG Beauty Salon. Donostia-San Sebastián.</p>
-            </td>
-          </tr>
-        </table>
-      </body>
-      </html>
-    `,
+    subject: txt.subject,
+    html: `<p>${txt.hello} ${escapeHtml(customerName)},</p><p>${txt.text}</p>`
   });
+}
 
-  if (error) {
-    console.error("🔥 ERROR REAL DE RESEND AL MODIFICAR:", error);
-    throw new Error(`Fallo enviando email de modificación: ${error.message}`);
-  }
+// ─── Email de Modificación ────────────────────────────────────────────────────
+
+export async function sendRescheduleEmail(params: { to: string; customerName: string; serviceName: string; oldStartTime: string; newStartTime: string; lang?: string }): Promise<void> {
+  const { to, customerName, serviceName, oldStartTime, newStartTime, lang = 'es' } = params;
+  const oldDateStr = formatDateES(oldStartTime, lang);
+  const newDateStr = formatDateES(newStartTime, lang);
+
+  const t = {
+    es: { subject: `Cita modificada — ${serviceName}`, hello: "Hola", text: `Tu cita para ${serviceName} ha sido actualizada.` },
+    en: { subject: `Booking modified — ${serviceName}`, hello: "Hello", text: `Your booking for ${serviceName} has been updated.` },
+    eu: { subject: `Hitzordua aldatuta — ${serviceName}`, hello: "Kaixo", text: `Zure ${serviceName}rako hitzordua aldatu da.` }
+  };
+  const txt = t[lang as keyof typeof t] || t.es;
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to,
+    subject: txt.subject,
+    html: `<p><strong>${txt.hello} ${escapeHtml(customerName)}</strong>,</p><p>${txt.text}</p><p>Anterior: ${oldDateStr}<br>Nuevo: ${newDateStr}</p>`
+  });
+}
+
+// ─── Alerta Urgente para Ana (Admin) ──────────────────────────────────────────
+
+export async function sendAdminAlert(params: AdminAlertParams): Promise<void> {
+  const { clientName, date, time, error } = params;
+
+  await resend.emails.send({
+    from: "AG Beauty Alertas <onboarding@resend.dev>",
+    to: ADMIN_EMAIL,
+    subject: "⚠️ ALERTA: Fallo en Sincronización - AG Beauty Salon",
+    html: `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h2 style="color: #dc2626;">⚠️ Google Calendar Desconectado</h2>
+        <p>Hola Ana,</p>
+        <p>Un cliente (<strong>${escapeHtml(clientName)}</strong>) ha intentado reservar el <strong>${date} a las ${time}</strong>.</p>
+        <p style="color: #dc2626; font-weight: bold;">La reserva NO se ha guardado en el calendario porque la conexión con Google ha fallado.</p>
+        <p><strong>Error técnico:</strong> ${error}</p>
+        <p>Por favor, revisa el panel de administración para reconectar Google.</p>
+      </div>
+    `
+  });
 }
 
 // ─── WhatsApp fallback ───────────────────────────────────────────────────────
 
 export function buildWhatsAppUrl(params: WhatsAppParams): string {
-  const { phone, customerName, serviceName, startTime } = params;
-  const dateStr = formatDateES(startTime);
+  const { phone, customerName, serviceName, startTime, lang = 'es' } = params;
+  const dateStr = formatDateES(startTime, lang);
   const normalizedPhone = normalizePhone(phone);
 
-  const message = [
-    `Hola ${customerName} 👋`,
-    ``,
-    `Te escribo desde AG Beauty Salon para informarte de que tu cita del ${dateStr} para *${serviceName}* ha sido cancelada.`,
-    ``,
-    `Disculpa las molestias. Si lo deseas, puedes reservar una nueva cita en ${SITE_URL}/reservar 💛`,
-  ].join("\n");
+  const t = {
+    es: `Hola ${customerName} 👋. Te informamos que tu cita del ${dateStr} para *${serviceName}* ha sido cancelada. Disculpa las molestias.`,
+    en: `Hello ${customerName} 👋. We inform you that your appointment on ${dateStr} for *${serviceName}* has been cancelled. We apologize for the inconvenience.`,
+    eu: `Kaixo ${customerName} 👋. Jakinarazten dizugu ${dateStr}ko zure hitzordua (*${serviceName}*) utzi egin dela. Barkatu eragozpenak.`
+  };
+  const message = t[lang as keyof typeof t] || t.es;
 
-  const encoded = encodeURIComponent(message);
-  return `https://wa.me/${normalizedPhone}?text=${encoded}`;
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
 }
