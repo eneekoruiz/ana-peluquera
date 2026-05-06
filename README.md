@@ -23,3 +23,14 @@ The goal of this application is twofold:
 * **Database & Auth:** Firebase (Auth, Firestore, Storage)
 * **Integrations:** Google Calendar API v3, Cloudinary API, Vercel KV (Rate Limiting)
 * **Email:** Resend
+## Environment Variables
+
+To run this project in production (Vercel), ensure the following variables are configured:
+
+*   **PORTFOLIO_ORIGIN:** `https://eneko-ruiz.vercel.app` (The domain allowed to embed the app).
+*   **ALLOWED_ORIGINS:** Comma-separated list of origins (e.g., `https://eneko-ruiz.vercel.app`).
+*   **KV_URL / KV_REST_API_URL:** Required for production rate limiting (Vercel KV).
+*   **FIREBASE_SERVICE_ACCOUNT_JSON:** Admin credentials.
+*   **RESEND_API_KEY:** For professional emails.
+*   **CLOUDINARY_API_SECRET:** For secure image deletion.
+*   **GOOGLE_CLIENT_ID / SECRET / REDIRECT_URI:** For Google Calendar OAuth2.

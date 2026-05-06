@@ -2,58 +2,71 @@ import { NextResponse } from "next/server";
 import { getFirebaseAdminApp } from "@/lib/firebaseAdmin";
 import { sendCancellationEmail } from "@/lib/notifications";
 import { cancelAppointment } from "@/lib/googleCalendar"; 
+import crypto from 'node:crypto';
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsHeaders });
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get('origin') || '';
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : (ALLOWED_ORIGINS[0] || '');
+
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Vary': 'Origin',
+  };
+}
+
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, { status: 204, headers: getCorsHeaders(request) });
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const headers = getCorsHeaders(request);
   try {
-    // Aunque la variable se llame 'id' por la ruta de Next.js, en realidad nos está llegando el cancelToken
-    const token = params.id;
+    const rawToken = params.id;
+    const hashedInput = crypto.createHash('sha256').update(rawToken).digest('hex');
     
     const db = getFirebaseAdminApp().firestore();
     
-    // 1. 🚀 FIX: Buscamos la cita por su cancelToken, NO por su ID de documento
+    // Buscamos por el hash o por el raw (legacy)
     const snapshot = await db.collection("bookings")
-      .where("cancelToken", "==", token)
-      .where("status", "in", ["confirmed", "pending"]) // Solo cancelamos si estaba activa
-      .limit(1)
+      .where("status", "in", ["confirmed", "pending", "error"])
       .get();
 
-    if (snapshot.empty) {
-      console.log("⚠️ Intento de cancelar una reserva con token inválido o ya cancelada:", token);
-      return NextResponse.json({ error: "Reserva no encontrada o ya cancelada" }, { status: 404, headers: corsHeaders });
+    const bookingDoc = snapshot.docs.find(doc => {
+      const d = doc.data();
+      return d.cancelToken === hashedInput || d.cancelToken === rawToken;
+    });
+
+    if (!bookingDoc) {
+      return NextResponse.json({ error: "Token inválido o reserva ya cancelada" }, { status: 404, headers });
     }
 
-    const bookingDoc = snapshot.docs[0];
-    const data = bookingDoc.data() as any;
+    const data = bookingDoc.data();
 
-    // 2. BORRAR DE GOOGLE CALENDAR
+    // 1. Google Calendar
     if (data.googleEventId) {
       try {
         await cancelAppointment(data.googleEventId);
-        console.log("✅ Evento borrado de Google Calendar:", data.googleEventId);
       } catch (calError) {
-        console.error("⚠️ Aviso: No se pudo borrar de Google (quizás ya se borró a mano):", calError);
+        console.error("Google Calendar delete error:", calError);
       }
     }
 
-    // 3. 🚀 FIX: Actualizamos el estado a 'cancelled' en vez de borrar el documento
-    // Así el hueco queda libre en la web, pero Ana guarda el historial
+    // 2. Firebase status update
     await bookingDoc.ref.update({
       status: 'cancelled',
-      canceledAt: new Date().toISOString()
+      cancelledAt: new Date().toISOString()
     });
-    console.log("✅ Cita cancelada en Firebase:", bookingDoc.id);
 
-    // 4. Enviamos el email de cancelación
+    // 3. Notificación
     if (data.client_email) {
       try {
         await sendCancellationEmail({
@@ -62,16 +75,15 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
           serviceName: data.service_name || "Servicio en AG Beauty",
           startTime: `${data.date}T${data.start_time}:00`
         });
-        console.log("✅ Email de cancelación enviado a:", data.client_email);
       } catch (emailError) {
-        console.error("⚠️ Aviso: La cita se canceló, pero falló el email de aviso:", emailError);
+        console.error("Email notification error:", emailError);
       }
     }
 
-    return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
+    return NextResponse.json({ success: true }, { status: 200, headers });
 
   } catch (error) {
-    console.error("❌ Error grave al cancelar la cita:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500, headers: corsHeaders });
+    console.error("❌ Error grave en cancelación:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500, headers });
   }
 }
