@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
-import { crypto } from 'next/dist/compiled/@edge-runtime/primitives'; // Usamos primitives compatibles con Edge/Node
+import crypto from 'node:crypto';
+import { requireAdminFromIdToken } from '@/lib/firebaseAdmin';
+import { z } from 'zod';
 
-/**
- * Helper para generar la firma SHA-1 exigida por Cloudinary.
- */
-async function generateSHA1(message: string) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+const deleteSchema = z.object({
+  publicId: z.string().min(1).max(255),
+});
 
 /**
  * POST /api/admin/delete-asset
@@ -17,11 +13,21 @@ async function generateSHA1(message: string) {
  */
 export async function POST(request: Request) {
   try {
-    const { publicId } = await request.json();
-
-    if (!publicId) {
-      return NextResponse.json({ error: 'Missing publicId' }, { status: 400 });
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const token = authHeader.split("Bearer ")[1];
+    await requireAdminFromIdToken(token);
+
+    const body = await request.json();
+    const parsed = deleteSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid publicId' }, { status: 400 });
+    }
+
+    const { publicId } = parsed.data;
 
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
@@ -32,8 +38,19 @@ export async function POST(request: Request) {
     }
 
     const timestamp = Math.round(new Date().getTime() / 1000).toString();
-    const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
-    const signature = await generateSHA1(stringToSign);
+    
+    // Construcción limpia de la firma para evitar problemas de codificación visual como &times
+    const params: Record<string, string> = {
+      public_id: publicId,
+      timestamp: timestamp,
+    };
+    
+    const sortedKeys = Object.keys(params).sort();
+    const signString = sortedKeys
+      .map(key => `${key}=${params[key]}`)
+      .join('&') + apiSecret;
+
+    const signature = crypto.createHash('sha1').update(signString).digest('hex');
 
     const formData = new FormData();
     formData.append('public_id', publicId);
@@ -48,15 +65,15 @@ export async function POST(request: Request) {
       body: formData,
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      return NextResponse.json({ error: 'Cloudinary error', details: data }, { status: response.status });
+      return NextResponse.json({ error: 'Cloudinary error' }, { status: response.status });
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error in delete-asset:', error);
-    return NextResponse.json({ error: 'Internal server error', message: error.message }, { status: 500 });
+    const status = error.code === 'FORBIDDEN' ? 403 : 500;
+    const msg = error.code === 'FORBIDDEN' ? 'Forbidden' : 'Internal server error';
+    return NextResponse.json({ error: msg }, { status });
   }
 }

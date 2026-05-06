@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
+import { getFirebaseAdminApp, requireAdminFromIdToken } from '@/lib/firebaseAdmin';
 import { createBooking } from '@/lib/bookingService'; 
 import { getBusySlots, cancelAppointment } from '@/lib/googleCalendar';
 import { Resend } from 'resend';
@@ -51,7 +51,7 @@ function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('origin') || '';
   const allowOrigin = ALLOWED_ORIGINS.includes(origin)
     ? origin
-    : (ALLOWED_ORIGINS[0] || '*');
+    : (ALLOWED_ORIGINS[0] || '');
 
   return {
     'Access-Control-Allow-Origin': allowOrigin,
@@ -61,12 +61,25 @@ function getCorsHeaders(request: Request): Record<string, string> {
   };
 }
 
+function escapeHtml(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 async function sendCancellationEmail(email: string, name: string, date: string, time: string, lang: string) {
+  const safeName = escapeHtml(name);
+  const safeDate = escapeHtml(date);
+  const safeTime = escapeHtml(time);
+
   const t = {
-    es: { title: "Cita Cancelada", msg: `Hola ${name}, te informamos que tu cita ha sido cancelada.`, help: "Si quieres reservar otra fecha, contáctanos:", call: "LLAMAR", wa: "WHATSAPP" },
-    en: { title: "Booking Cancelled", msg: `Hello ${name}, we inform you that your appointment has been cancelled.`, help: "To reschedule, please contact us:", call: "CALL", wa: "WHATSAPP" },
-    eu: { title: "Hitzordua Ezeztatuta", msg: `Kaixo ${name}, zure hitzordua ezeztatu dela jakinarazten dizugu.`, help: "Beste egun bat hartzeko, jarri gurekin harremanetan:", call: "DEITU", wa: "WHATSAPP" }
+    es: { title: "Cita Cancelada", msg: `Hola ${safeName}, te informamos que tu cita ha sido cancelada.`, help: "Si quieres reservar otra fecha, contáctanos:", call: "LLAMAR", wa: "WHATSAPP" },
+    en: { title: "Booking Cancelled", msg: `Hello ${safeName}, we inform you that your appointment has been cancelled.`, help: "To reschedule, please contact us:", call: "CALL", wa: "WHATSAPP" },
+    eu: { title: "Hitzordua Ezeztatuta", msg: `Kaixo ${safeName}, zure hitzordua ezeztatu dela jakinarazten dizugu.`, help: "Beste egun bat hartzeko, jarri gurekin harremanetan:", call: "DEITU", wa: "WHATSAPP" }
   };
   const text = t[lang as keyof typeof t] || t.es;
 
@@ -94,7 +107,7 @@ async function sendCancellationEmail(email: string, name: string, date: string, 
                     <p style="font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 30px;">${text.msg}</p>
                     
                     <div style="background-color: #fafafa; padding: 20px; margin-bottom: 30px; border-radius: 4px;">
-                      <p style="margin: 0; font-size: 12px; color: #111;"><strong>Cita original:</strong> ${date} a las ${time}h</p>
+                      <p style="margin: 0; font-size: 12px; color: #111;"><strong>Cita original:</strong> ${safeDate} a las ${safeTime}h</p>
                     </div>
 
                     <p style="font-size: 12px; color: #999; margin-bottom: 20px; text-align: center;">${text.help}</p>
@@ -127,7 +140,7 @@ export async function OPTIONS(request: Request) {
 
 export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
-  if (isRateLimited(request, 'bookings-access', 60)) {
+  if (await isRateLimited(request, 'bookings-access', 60)) {
     return getRateLimitResponse();
   }
 
@@ -200,7 +213,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const headers = getCorsHeaders(request);
-  if (isRateLimited(request, 'bookings-post', 10)) {
+  if (await isRateLimited(request, 'bookings-post', 10)) {
     return getRateLimitResponse();
   }
 
@@ -230,21 +243,50 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const headers = getCorsHeaders(request);
-  if (isRateLimited(request, 'bookings-delete', 20)) {
+  if (await isRateLimited(request, 'bookings-delete', 20)) {
     return getRateLimitResponse();
   }
 
-
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+  const cancelToken = searchParams.get('token');
+  const authHeader = request.headers.get("authorization");
+
   if (!id) return NextResponse.json({ error: 'Falta ID' }, { status: 400, headers });
+
   try {
     const db = getFirebaseAdminApp().firestore();
     const docRef = db.collection('bookings').doc(id);
     const docSnap = await docRef.get();
-    if (!docSnap.exists) return NextResponse.json({ error: 'No existe' }, { status: 404, headers });
-    const data = docSnap.data() as any;
     
+    if (!docSnap.exists) return NextResponse.json({ error: 'No existe' }, { status: 404, headers });
+    
+    const data = docSnap.data() as any;
+
+    // 🛡️ PROTECCIÓN DE BORRADO:
+    let isAuthorized = false;
+
+    // Caso A: Es administrador (token Bearer válido)
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split("Bearer ")[1];
+        await requireAdminFromIdToken(token);
+        isAuthorized = true;
+      } catch (err) {
+        console.warn("Intento de borrado admin fallido.");
+      }
+    }
+
+    // Caso B: Es cliente con cancelToken válido
+    if (!isAuthorized && cancelToken && data.cancelToken === cancelToken) {
+      isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403, headers });
+    }
+
+    // Proceder con cancelación
     if (data.client_email) {
         await sendCancellationEmail(data.client_email, data.client_name || data.customerName, data.date, data.start_time || data.startTime, data.lang || 'es');
     }
@@ -252,7 +294,11 @@ export async function DELETE(request: Request) {
     if (data?.googleEventId) {
       try { await cancelAppointment(data.googleEventId); } catch (e) {}
     }
+    
     await docRef.delete();
     return NextResponse.json({ success: true }, { status: 200, headers });
-  } catch (error) { return NextResponse.json({ error: 'Error' }, { status: 500, headers }); }
+  } catch (error) { 
+    console.error("Error en DELETE /api/bookings:", error);
+    return NextResponse.json({ error: 'Error interno' }, { status: 500, headers }); 
+  }
 }

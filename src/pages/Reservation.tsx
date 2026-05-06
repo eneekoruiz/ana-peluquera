@@ -139,18 +139,24 @@ const Reservation = () => {
 
   // ✅ NUEVO: Verificar estado de sincronización al cargar
   useEffect(() => {
+    const controller = new AbortController();
     const checkStatus = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/admin/calendar/status`);
+        const res = await fetch(`${API_BASE_URL}/admin/calendar/status`, {
+          signal: controller.signal
+        });
         const data = await res.json();
         if (data.status === 'disconnected') {
           setIsCalendarOffline(true);
         }
       } catch (e) {
-        console.error("No se pudo verificar el estado del calendario");
+        if ((e as DOMException).name !== 'AbortError') {
+          console.error("No se pudo verificar el estado del calendario");
+        }
       }
     };
     checkStatus();
+    return () => controller.abort();
   }, []);
 
 

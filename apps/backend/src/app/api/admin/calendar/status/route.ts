@@ -1,16 +1,41 @@
 import { NextResponse } from 'next/server';
 import { checkCalendarSyncStatus } from '@/lib/googleCalendar';
 import { isRateLimited, getRateLimitResponse } from '@/lib/rateLimiter';
-
+import { requireAdminRequest } from '@/lib/auth';
 import { db } from '@/lib/firebaseAdmin';
 import { readCalendarWatchConfig, registerCalendarWatch } from '@/lib/calendarWebhookSync';
 import dayjs from 'dayjs';
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+function getCorsHeaders(request: Request) {
+  const origin = request.headers.get('origin');
+  const isAllowed = origin && ALLOWED_ORIGINS.includes(origin);
+  
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? origin : (ALLOWED_ORIGINS[0] || ''),
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Vary': 'Origin',
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, { status: 200, headers: getCorsHeaders(request) });
+}
+
 export async function GET(request: Request) {
-  if (isRateLimited(request, 'calendar-status', 10)) {
+  const auth = await requireAdminRequest(request);
+  if (!auth.authorized) return auth.response;
+
+  const headers = getCorsHeaders(request);
+
+  if (await isRateLimited(request, 'calendar-status', 10)) {
     return getRateLimitResponse();
   }
   try {
@@ -41,10 +66,10 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json(status);
+    return NextResponse.json(status, { headers });
 
   } catch (error) {
     console.error("Error in calendar status route:", error);
-    return NextResponse.json({ status: 'disconnected', error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ status: 'disconnected', error: 'Internal server error' }, { status: 500, headers });
   }
 }

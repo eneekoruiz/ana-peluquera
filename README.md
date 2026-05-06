@@ -18,7 +18,8 @@ The goal of this application is twofold:
 
 ## Tech Stack
 
-* **Frontend:** Next.js (React), Tailwind CSS, TypeScript
-* **Backend / BaaS:** Firebase (Auth, Firestore for DB, Storage for media)
-* **Integrations:** Google Calendar API v3
-* **Icons & UI:** Lucide React / Phosphor Icons
+* **Frontend:** Vite (React), Tailwind CSS, TypeScript
+* **Backend (APIs):** Next.js (Serverless), Firebase Admin SDK
+* **Database & Auth:** Firebase (Auth, Firestore, Storage)
+* **Integrations:** Google Calendar API v3, Cloudinary API, Vercel KV (Rate Limiting)
+* **Email:** Resend

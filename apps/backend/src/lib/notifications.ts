@@ -59,6 +59,16 @@ export interface WhatsAppParams {
 
 // ─── Helpers de formato ──────────────────────────────────────────────────────
 
+function escapeHtml(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function formatDateES(iso: string): string {
   if (!iso) return "la fecha acordada";
   const d = new Date(iso);
@@ -109,14 +119,14 @@ export async function sendConfirmationEmail(params: ConfirmationEmailParams): Pr
                 </tr>
                 <tr>
                   <td style="padding: 40px 40px 20px 40px;">
-                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${customerName}</strong></p>
+                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${escapeHtml(customerName)}</strong></p>
                     <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0 0 30px 0;">Tu reserva ha sido confirmada. Todo está listo para tu visita a nuestro salón.</p>
                     
                     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fcfbf9; border: 1px solid #f0ede9; border-radius: 4px; padding: 20px;">
                       <tr>
                         <td style="padding-bottom: 15px;">
                           <p style="font-size: 11px; color: #9a8b7a; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 5px 0;">Servicio</p>
-                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${serviceName}</p>
+                          <p style="font-size: 16px; color: #1a1a1a; font-weight: bold; margin: 0;">${escapeHtml(serviceName)}</p>
                         </td>
                       </tr>
                       <tr>
@@ -186,8 +196,8 @@ export async function sendCancellationEmail(params: CancellationEmailParams): Pr
                 </tr>
                 <tr>
                   <td style="padding: 40px 40px 30px 40px; text-align: center;">
-                    <p style="font-size: 16px; color: #333333; margin: 0 0 15px 0;">Hola, <strong>${customerName}</strong></p>
-                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0;">Confirmamos que tu cita para <strong>${serviceName}</strong> el <strong>${dateStr}</strong> ha sido cancelada correctamente.</p>
+                    <p style="font-size: 16px; color: #333333; margin: 0 0 15px 0;">Hola, <strong>${escapeHtml(customerName)}</strong></p>
+                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0;">Confirmamos que tu cita para <strong>${escapeHtml(serviceName)}</strong> el <strong>${dateStr}</strong> ha sido cancelada correctamente.</p>
                   </td>
                 </tr>
                 <tr>
@@ -243,8 +253,8 @@ export async function sendRescheduleEmail(params: RescheduleEmailParams): Promis
                 </tr>
                 <tr>
                   <td style="padding: 40px 40px 20px 40px;">
-                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${customerName}</strong></p>
-                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0 0 25px 0;">Tu cita para <strong>${serviceName}</strong> ha sido actualizada. Estos son los nuevos datos:</p>
+                    <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0;">Hola, <strong>${escapeHtml(customerName)}</strong></p>
+                    <p style="font-size: 15px; color: #555555; line-height: 1.6; margin: 0 0 25px 0;">Tu cita para <strong>${escapeHtml(serviceName)}</strong> ha sido actualizada. Estos son los nuevos datos:</p>
 
                     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fcfbf9; border: 1px solid #f0ede9; border-radius: 4px; padding: 20px;">
                       <tr>
