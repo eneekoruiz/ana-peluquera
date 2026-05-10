@@ -37,24 +37,38 @@ export interface AdminSettings {
   vacation_ranges: VacationRange[]; // 🔥 AHORA ES UNA LISTA INFINITA
 }
 
-const SETTINGS_DOC_REF = doc(db, "admin", "settings");
+const SETTINGS_DOC_REF = doc(db, "settings", "admin");
+const OLD_SETTINGS_DOC_REF = doc(db, "admin", "settings");
 
 export const useAdminSettings = () => {
   return useQuery({
     queryKey: ["admin_settings"],
     queryFn: async () => {
-      const snap = await withTimeout(getDoc(SETTINGS_DOC_REF), QUERY_TIMEOUT_MS, "Timeout cargando ajustes");
-      
+      let snap = await withTimeout(getDoc(SETTINGS_DOC_REF), QUERY_TIMEOUT_MS, "Timeout cargando ajustes");
+      let data: any;
+
       if (!snap.exists()) {
-        return {
-          bookings_enabled: true,
-          today_closed: false,
-          today_closed_date: null,
-          vacation_ranges: [],
-        } as AdminSettings;
+        // Attempt migration from old path
+        const oldSnap = await getDoc(OLD_SETTINGS_DOC_REF);
+        if (oldSnap.exists()) {
+          data = oldSnap.data();
+          try {
+            await setDoc(SETTINGS_DOC_REF, data);
+            console.log("Migrated settings from admin/settings to settings/admin");
+          } catch (e) {
+            console.error("Failed to migrate settings", e);
+          }
+        } else {
+          return {
+            bookings_enabled: true,
+            today_closed: false,
+            today_closed_date: null,
+            vacation_ranges: [],
+          } as AdminSettings;
+        }
+      } else {
+        data = snap.data();
       }
-      
-      const data = snap.data();
       
       // 🛠️ Migración automática: Si Ana tenía guardadas vacaciones con el sistema viejo, lo pasamos al nuevo
       if (!data.vacation_ranges) {

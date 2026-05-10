@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     // 🚀 AUTO-RENEWAL: Si el webhook expira pronto, lo renovamos
     if (status.status === 'connected') {
       try {
-        const settingsSnap = await db.collection("admin").doc("settings").get();
+        const settingsSnap = await db.collection("settings").doc("admin").get();
         const watchConfig = readCalendarWatchConfig(settingsSnap.data());
         
         if (watchConfig?.expiration) {

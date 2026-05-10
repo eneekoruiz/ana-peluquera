@@ -45,7 +45,7 @@ export async function OPTIONS(request: Request) {
 
 export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
-  if (await isRateLimited(request, 'bookings-access', 60)) {
+  if (await isRateLimited(request, 'bookings-access', 120)) {
     return getRateLimitResponse();
   }
 
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const headers = getCorsHeaders(request);
-  if (await isRateLimited(request, 'bookings-post', 10)) {
+  if (await isRateLimited(request, 'bookings-post', 25)) {
     return getRateLimitResponse();
   }
 

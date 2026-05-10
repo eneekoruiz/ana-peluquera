@@ -37,8 +37,7 @@ export async function GET(request: Request) {
     if (tokens.refresh_token) {
       const db = getFirebaseAdminApp().firestore();
       
-      // Guardamos el token en el documento de configuración del admin
-      await db.collection("admin").doc("settings").set(
+      await db.collection("settings").doc("admin").set(
         { google_refresh_token: tokens.refresh_token },
         { merge: true }
       );

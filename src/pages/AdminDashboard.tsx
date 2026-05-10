@@ -371,12 +371,12 @@ const AdminDashboard = () => {
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Webhook Google Calendar</p>
                     <p className={`text-base font-serif ${hasActiveWatch ? "text-green-700" : "text-foreground"}`}>
-                      {hasActiveWatch ? "Activo y escuchando cambios" : "Inactivo"}
+                      {hasActiveWatch ? "Sincronización Total Activa" : "Sincronización Manual Requerida"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {hasActiveWatch
-                        ? `Canal: ${watchStatus?.channelId} · Expira: ${watchExpiration || "sin fecha"}`
-                        : "Activa el webhook para sincronización bidireccional en tiempo real."}
+                        ? `Todo funciona automáticamente. Expira: ${watchExpiration || "sin fecha"}`
+                        : "El sistema intentará conectarse solo al vincular Google, pero puedes activarlo aquí si falla."}
                     </p>
                   </div>
 

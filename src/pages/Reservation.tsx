@@ -107,6 +107,7 @@ const Reservation = () => {
   const [slotsFetchTimedOut, setSlotsFetchTimedOut] = useState(false);
   const [slotsRetryTick, setSlotsRetryTick] = useState(0);
   const [isCalendarOffline, setIsCalendarOffline] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
 
   const todayStr = getLocalDateStr();
@@ -141,6 +142,7 @@ const Reservation = () => {
   useEffect(() => {
     const controller = new AbortController();
     const checkStatus = async () => {
+      setIsCheckingStatus(true);
       try {
         const res = await fetch(`${API_BASE_URL}/admin/calendar/status`, {
           signal: controller.signal
@@ -151,8 +153,11 @@ const Reservation = () => {
         }
       } catch (e) {
         if ((e as DOMException).name !== 'AbortError') {
-          console.error("No se pudo verificar el estado del calendario");
+          console.error("No se pudo verificar el estado del calendario. Activando Salvaguardia por precaución.");
+          setIsCalendarOffline(true); 
         }
+      } finally {
+        setIsCheckingStatus(false);
       }
     };
     checkStatus();
@@ -383,38 +388,75 @@ const Reservation = () => {
 
   const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
 
+  if (isCheckingStatus) {
+    return (
+      <div className="pt-16 min-h-screen flex items-center justify-center bg-warm-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-sand-dark/20 border-t-sand-dark rounded-full animate-spin"></div>
+          <p className="text-sm font-sans text-muted-foreground animate-pulse">Preparando tu reserva...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (bookingsDisabled || isCalendarOffline) {
     return (
-      <main className="pt-16 min-h-screen flex items-center justify-center bg-warm-white">
-        <div className="container max-w-md text-center px-6">
+      <main className="pt-16 min-h-screen flex items-center justify-center bg-warm-white relative overflow-hidden">
+        {/* Elementos decorativos Elite */}
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-sand-light/20 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-cream/30 blur-[120px] rounded-full" />
+
+        <div className="container max-w-lg text-center px-6 relative z-10">
           <ScrollReveal>
-            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CalendarIcon size={32} className="text-amber-600" />
+            <div className="w-24 h-24 bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-sm border border-amber-100/50 transform rotate-3">
+              <CalendarIcon size={40} className="text-amber-600" />
             </div>
-            <h1 className="font-serif text-3xl text-foreground mb-4">
-              {isCalendarOffline ? "Agenda en Mantenimiento" : "Reservas Pausadas"}
+            
+            <h1 className="font-serif text-4xl md:text-5xl text-foreground mb-6 leading-tight">
+              {isCalendarOffline ? "Actualizando Nuestra Agenda" : "Pausa de Bienestar"}
             </h1>
-            <p className="text-muted-foreground mb-8 leading-relaxed">
+            
+            <div className="w-16 h-1 bg-sand-dark mx-auto mb-8 rounded-full" />
+            
+            <p className="text-lg text-muted-foreground mb-10 leading-relaxed font-sans max-w-md mx-auto">
               {isCalendarOffline 
-                ? "Estamos actualizando nuestra agenda digital para ofrecerte el mejor servicio. Mientras tanto, puedes reservar directamente por WhatsApp."
-                : "El sistema de reservas online está pausado temporalmente."}
+                ? "Estamos realizando una mejora técnica en nuestra agenda digital para garantizarte la mejor experiencia. ¡No te preocupes! Ana sigue disponible para ti."
+                : "Nuestro sistema de reservas online está descansando momentáneamente."}
+              <br />
+              <span className="block mt-4 font-medium text-foreground">Puedes reservar tu cita directamente por estas vías:</span>
             </p>
             
-            {isCalendarOffline && (
-              <div className="flex flex-col gap-3">
-                <Button variant="hero" className="w-full h-14 text-base" asChild>
-                  <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle size={20} className="mr-2" /> Reservar por WhatsApp
-                  </a>
-                </Button>
-                <Button variant="outline" className="w-full h-14 text-base" asChild>
-                  <a href={`tel:+${SALON_PHONE}`}>
-                    <Phone size={20} className="mr-2" /> Llamar al Salón
-                  </a>
-                </Button>
-              </div>
-            )}
+            <div className="flex flex-col gap-4 max-w-sm mx-auto">
+              <Button 
+                variant="hero" 
+                className="w-full h-16 text-lg font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-900/20 transition-all border-none group" 
+                asChild
+              >
+                <a 
+                  href={`https://wa.me/${PERSONAL_PHONE}?text=${encodeURIComponent(
+                    "Hola Ana 👋, he visto en la web que la agenda está en mantenimiento y quería reservar una cita. ¿Qué huecos tienes disponibles?"
+                  )}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle size={24} className="mr-3 group-hover:scale-110 transition-transform" /> Reservar por WhatsApp
+                </a>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="w-full h-16 text-lg font-medium border-border hover:bg-card hover:border-sand-dark transition-all bg-white" 
+                asChild
+              >
+                <a href={`tel:+${SALON_PHONE}`}>
+                  <Phone size={24} className="mr-3 text-sand-dark" /> Llamar al Salón
+                </a>
+              </Button>
+            </div>
 
+            <p className="mt-12 text-xs text-muted-foreground uppercase tracking-widest-plus opacity-60">
+              AG Beauty Salon · Siente la Diferencia
+            </p>
           </ScrollReveal>
         </div>
       </main>

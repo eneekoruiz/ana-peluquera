@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const settingsSnap = await db.collection("admin").doc("settings").get();
+    const settingsSnap = await db.collection("settings").doc("admin").get();
     const watchConfig = readCalendarWatchConfig(settingsSnap.data());
 
     if (!watchConfig) {

@@ -15,7 +15,6 @@ export async function isRateLimited(request: Request, scope: string, maxRequests
   const ip = forwarded ? forwarded.split(',')[0].trim() : (request.headers.get('x-real-ip') || 'unknown');
   
   const key = `ratelimit:${scope}:${ip}`;
-  const isProd = process.env.NODE_ENV === 'production';
   
   try {
     if (process.env.KV_URL) {
@@ -24,16 +23,12 @@ export async function isRateLimited(request: Request, scope: string, maxRequests
         await kv.expire(key, 60);
       }
       return current > maxRequests;
-    } else if (isProd) {
-      // 🚨 ERROR CRÍTICO: Producción sin Rate Limit persistente.
-      console.error("❌ ERROR: KV_URL no configurada en producción. Bloqueando por seguridad.");
-      return true; // Bloqueamos por defecto si falta seguridad en prod
     } else {
-      console.warn("⚠️ Modo Dev: Usando fallback de memoria.");
+      console.warn("⚠️ KV_URL no configurada. Usando fallback de memoria.");
     }
   } catch (err) {
-    console.error("❌ Error en Vercel KV:", err);
-    if (isProd) return true; // En prod, ante duda, bloqueamos
+    console.error("❌ Error en Vercel KV (Rate Limit):", err);
+    // FAIL-OPEN: Si falla Redis, permitimos la solicitud para no bloquear el negocio de Ana.
   }
 
   return isRateLimitedInMemory(key, maxRequests);

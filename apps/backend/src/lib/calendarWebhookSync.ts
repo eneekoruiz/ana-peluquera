@@ -11,7 +11,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const TZ = "Europe/Madrid";
-const SETTINGS_DOC_PATH = ["admin", "settings"] as const;
+const SETTINGS_DOC_PATH = ["settings", "admin"] as const;
 const LOCK_DOC_PATH = ["admin", "calendar_webhook_lock"] as const;
 const WATCH_FIELD = "googleCalendarWatch";
 const LOCK_TTL_MS = 2 * 60 * 1000;

@@ -3,6 +3,7 @@
  */
 
 import { Resend } from "resend";
+import { getFirebaseAdminApp } from "./firebaseAdmin";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eneko-ruiz.vercel.app";
@@ -165,9 +166,20 @@ export async function sendRescheduleEmail(params: { to: string; customerName: st
 export async function sendAdminAlert(params: AdminAlertParams): Promise<void> {
   const { clientName, date, time, error } = params;
 
+  let dynamicAdminEmail = ADMIN_EMAIL;
+  try {
+    const db = getFirebaseAdminApp().firestore();
+    const adminDoc = await db.collection("settings").doc("admin").get();
+    if (adminDoc.exists && adminDoc.data()?.email) {
+      dynamicAdminEmail = adminDoc.data()?.email;
+    }
+  } catch (e) {
+    console.error("No se pudo obtener el email dinámico de la BD, usando fallback", e);
+  }
+
   await resend.emails.send({
     from: "AG Beauty Alertas <onboarding@resend.dev>",
-    to: ADMIN_EMAIL,
+    to: dynamicAdminEmail,
     subject: "⚠️ ALERTA: Fallo en Sincronización - AG Beauty Salon",
     html: `
       <div style="font-family: sans-serif; padding: 20px;">
