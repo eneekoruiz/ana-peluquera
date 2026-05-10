@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { isRateLimited, getRateLimitResponse } from '@/lib/rateLimiter';
 import crypto from 'node:crypto';
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app,https://ana-peluqueria.vercel.app,https://ana-peluquera.vercel.app')
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
