@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { randomUUID } from "node:crypto";
 import type { calendar_v3 } from "googleapis";
-import { db } from "@/lib/firebaseAdmin";
+import { getDb } from "@/lib/firebaseAdmin";
 import { getGoogleCalendarClient } from "@/lib/googleCalendar";
 import { sendCancellationEmail, sendRescheduleEmail } from "@/lib/notifications";
 
@@ -82,11 +82,11 @@ type BookingRecord = {
 };
 
 function getSettingsRef() {
-  return db.collection(SETTINGS_DOC_PATH[0]).doc(SETTINGS_DOC_PATH[1]);
+  return getDb().collection(SETTINGS_DOC_PATH[0]).doc(SETTINGS_DOC_PATH[1]);
 }
 
 function getLockRef() {
-  return db.collection(LOCK_DOC_PATH[0]).doc(LOCK_DOC_PATH[1]);
+  return getDb().collection(LOCK_DOC_PATH[0]).doc(LOCK_DOC_PATH[1]);
 }
 
 function getWatchBaseUrl(): string {
@@ -264,7 +264,7 @@ async function acquireProcessingLock(lockKey: string): Promise<boolean> {
   const now = Date.now();
   let acquired = false;
 
-  await db.runTransaction(async (transaction) => {
+  await getDb().runTransaction(async (transaction) => {
     const snapshot = await transaction.get(lockRef);
     const existing = snapshot.data() as { lockKey?: string; expiresAt?: number } | undefined;
 
@@ -289,7 +289,7 @@ async function syncBookingFromEvent(event: calendar_v3.Schema$Event): Promise<We
     return { kind: "skip", reason: "missing_event_id" };
   }
 
-  const bookingQuery = await db.collection("bookings").where("googleEventId", "==", event.id).limit(1).get();
+  const bookingQuery = await getDb().collection("bookings").where("googleEventId", "==", event.id).limit(1).get();
   if (bookingQuery.empty) {
     return { kind: "skip", reason: "booking_not_found" };
   }

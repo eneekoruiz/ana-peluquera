@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendConfirmationEmail } from "@/lib/notifications";
 import { createAppointment } from "@/lib/googleCalendar";
-import { getFirebaseAdminApp } from "@/lib/firebaseAdmin"; // 👈 Importamos Firebase para poder guardar el ID
+import { getFirebaseAdminApp, getDb } from "@/lib/firebaseAdmin"; // 👈 Importamos Firebase para poder guardar el ID
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
       // 🚀 EL ESLABÓN PERDIDO: Guardamos ese ID en Firebase para poder borrarlo después
       if (calendarResult.eventId) {
-        const db = getFirebaseAdminApp().firestore();
+        const db = getDb();
         await db.collection("bookings").doc(id).update({
           googleEventId: calendarResult.eventId
         });

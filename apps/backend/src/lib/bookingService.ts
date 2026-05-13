@@ -1,6 +1,6 @@
-import { Resend } from 'resend';
-import { getFirebaseAdminApp } from './firebaseAdmin'; 
+import { getFirebaseAdminApp, getDb } from './firebaseAdmin'; 
 import { createAppointment, cancelAppointment, getBusySlots } from './googleCalendar'; 
+import { timeToMinutes, isSlotAvailable } from "@ana-peluquera/scheduler";
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -10,7 +10,7 @@ import { sendConfirmationEmail, sendCancellationEmail, sendAdminAlert } from './
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// resend instance removed, using send*Email from notifications.ts
 
 export interface BookingPayload {
   client_name: string;
@@ -25,13 +25,7 @@ export interface BookingPayload {
   lang?: string;
 }
 
-const timeToMinutes = (t: string) => {
-  if (!t || !t.includes(":")) return 0;
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-};
-
-const isOverlap = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && e1 > s2;
+// Helpers moved to @ana-peluquera/scheduler
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -56,7 +50,7 @@ export async function getAvailableSlots(date: string) {
  * 🚀 Crea una reserva con lógica de fases (Smart Booking) y transacción atómica.
  */
 export async function createBooking(data: BookingPayload) {
-  const db = getFirebaseAdminApp().firestore();
+  const db = getDb();
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
   
   // 1. Obtener info del servicio para las fases
@@ -84,20 +78,14 @@ export async function createBooking(data: BookingPayload) {
     throw err;
   });
 
-  for (const slot of busy) {
-    const bStart = timeToMinutes(slot.start.format('HH:mm'));
-    const bEnd = timeToMinutes(slot.end.format('HH:mm'));
-    const isAppointment = slot.isAppointment === true;
+  const reqPhases = {
+    p1: { start: sMin, end: p1End },
+    p2: p2Min > 0 ? { start: p1End, end: p2End } : null,
+    p3: p3Min > 0 ? { start: p2End, end: p3End } : null
+  };
 
-    // Lógica Smart: Si es un bloqueo manual, nada entra. Si es una cita, P2 es libre.
-    if (!isAppointment) {
-      if (isOverlap(p1Start, p1End, bStart, bEnd)) throw new Error("SLOT_OCCUPIED");
-      if (p2Min > 0 && isOverlap(p1End, p2End, bStart, bEnd)) throw new Error("SLOT_OCCUPIED");
-      if (p3Min > 0 && isOverlap(p2End, p3End, bStart, bEnd)) throw new Error("SLOT_OCCUPIED");
-    } else {
-      if (isOverlap(p1Start, p1End, bStart, bEnd)) throw new Error("SLOT_OCCUPIED");
-      if (p3Min > 0 && isOverlap(p2End, p3End, bStart, bEnd)) throw new Error("SLOT_OCCUPIED");
-    }
+  if (!isSlotAvailable(reqPhases, busy)) {
+    throw new Error("SLOT_OCCUPIED");
   }
 
   // 3. Transacción en Firebase para evitar race conditions
@@ -105,22 +93,29 @@ export async function createBooking(data: BookingPayload) {
   const rawCancelToken = crypto.randomBytes(32).toString('hex');
   const hashedToken = hashToken(rawCancelToken);
 
+  // Lock por fecha: Serializa todas las reservas del mismo día
+  const lockRef = db.collection('booking_locks').doc(data.date);
+
   await db.runTransaction(async (transaction) => {
+    // Al leer el lock, Firestore bloquea esta transacción si otra está escribiendo en el mismo lock
+    await transaction.get(lockRef);
+
     const snapshot = await transaction.get(
       db.collection('bookings')
         .where('date', '==', data.date)
         .where('status', '==', 'confirmed')
     );
     
-    for (const ebDoc of snapshot.docs) {
-      const eb = ebDoc.data();
-      const ebStart = timeToMinutes(eb.start_time);
-      const ebEnd = timeToMinutes(eb.end_time);
-      
-      if (isOverlap(p1Start, p1End, ebStart, ebEnd)) throw new Error("SLOT_OCCUPIED");
-      if (p3Min > 0 && isOverlap(p2End, p3End, ebStart, ebEnd)) throw new Error("SLOT_OCCUPIED");
+    if (!isSlotAvailable(reqPhases, snapshot.docs.map(d => d.data()))) {
+      throw new Error("SLOT_OCCUPIED");
     }
-
+    
+    // Actualizamos el lock para forzar la serialización de escrituras concurrentes
+    transaction.set(lockRef, { 
+      last_booking_at: new Date().toISOString(),
+      date: data.date 
+    }, { merge: true });
+    
     transaction.set(bookingRef, {
       ...data,
       id: bookingRef.id,
@@ -190,28 +185,51 @@ export async function createBooking(data: BookingPayload) {
 }
 
 /**
- * 🗑️ Cancelación unificada con SHA-256 y legacy support.
+ * 🗑️ Cancelación unificada con SHA-256 y soporte para Admin (por ID).
  */
-export async function cancelBookingByToken(rawToken: string, isAdmin = false) {
-  const db = getFirebaseAdminApp().firestore();
-  const hashedToken = hashToken(rawToken);
+export async function cancelBookingByToken(rawTokenOrId: string, isAdmin = false) {
+  const db = getDb();
+  let bookingDoc: any = null;
 
-  const snapshot = await db.collection("bookings")
-    .where("status", "in", ["confirmed", "pending", "error"])
-    .get();
+  if (isAdmin) {
+    // Los admins pueden cancelar directamente por ID
+    const docById = await db.collection("bookings").doc(rawTokenOrId).get();
+    if (docById.exists) {
+      bookingDoc = docById;
+    }
+  }
 
-  const bookingDoc = snapshot.docs.find(doc => {
-    const d = doc.data();
-    return d.cancelToken === hashedToken || d.cancelToken === rawToken;
-  });
+  // Si no se encontró por ID (o no es admin), buscamos por token
+  if (!bookingDoc) {
+    const hashedToken = hashToken(rawTokenOrId);
+    const snapshot = await db.collection("bookings")
+      .where("cancelToken", "in", [rawTokenOrId, hashedToken])
+      .get();
 
-  if (!bookingDoc && !isAdmin) throw new Error("INVALID_TOKEN");
-  if (!bookingDoc) throw new Error("BOOKING_NOT_FOUND");
+    bookingDoc = snapshot.docs.find(doc => {
+      const d = doc.data();
+      return ["confirmed", "pending", "error"].includes(d.status);
+    });
+  }
+
+  if (!bookingDoc) {
+    throw new Error(isAdmin ? "BOOKING_NOT_FOUND" : "INVALID_TOKEN");
+  }
 
   const data = bookingDoc.data();
+  // Evitar doble cancelación
+  if (data.status === 'cancelled') return { success: true, alreadyCancelled: true };
 
   if (data.googleEventId) {
-    try { await cancelAppointment(data.googleEventId); } catch (e) {}
+    try {
+      await cancelAppointment(data.googleEventId);
+    } catch (e: any) {
+      const statusCode = e.response?.status || e.code;
+      if (statusCode !== 404) {
+        console.error("Critical Google Calendar error during cancellation in service:", e);
+        throw new Error("GOOGLE_CALENDAR_ERROR");
+      }
+    }
   }
 
   await bookingDoc.ref.update({
@@ -226,9 +244,11 @@ export async function cancelBookingByToken(rawToken: string, isAdmin = false) {
         customerName: data.client_name,
         serviceName: data.service_name,
         startTime: `${data.date}T${data.start_time}:00`,
-        lang: data.lang
+        lang: data.lang || 'es'
       });
-    } catch (e) {}
+    } catch (e) {
+      console.error("Fallo al enviar email de cancelación:", e);
+    }
   }
 
   return { success: true };

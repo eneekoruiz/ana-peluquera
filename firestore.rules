@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Función para verificar si el usuario es administrador
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == "ana@tudominio.com" || 
+        request.auth.token.email == "eneekoruiz@gmail.com"
+      );
+    }
+
+    // Servicios: lectura pública, escritura solo admin
+    match /services/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // About Us: lectura pública, escritura solo admin
+    match /about_us/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Magazine (Revista): lectura pública, escritura solo admin
+    match /magazine/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Settings (Configuración): solo admin puede leer y escribir
+    match /settings/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // Bookings (Reservas): 
+    // - Creación pública (el backend valida colisiones)
+    // - Lectura/Update/Delete solo para Admin
+    match /bookings/{id} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Notas de clientes: solo admin
+    match /client_notes/{id} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

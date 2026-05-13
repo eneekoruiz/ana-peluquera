@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebaseAdmin";
+import { getDb } from "@/lib/firebaseAdmin";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
@@ -21,7 +21,7 @@ function getCorsHeaders(request: Request) {
 export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
   try {
-    const snapshot = await db.collection("services").get();
+    const snapshot = await getDb().collection("services").get();
     const services = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()

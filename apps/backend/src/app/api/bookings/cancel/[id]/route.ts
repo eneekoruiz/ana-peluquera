@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { getFirebaseAdminApp } from "@/lib/firebaseAdmin";
-import { sendCancellationEmail } from "@/lib/notifications";
-import { cancelAppointment } from "@/lib/googleCalendar"; 
-import crypto from 'node:crypto';
+import { cancelBookingByToken } from "@/lib/bookingService";
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app,https://ana-peluqueria.vercel.app,https://ana-peluquera.vercel.app')
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
@@ -31,59 +28,11 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   const headers = getCorsHeaders(request);
   try {
     const rawToken = params.id;
-    const hashedInput = crypto.createHash('sha256').update(rawToken).digest('hex');
-    
-    const db = getFirebaseAdminApp().firestore();
-    
-    // Buscamos por el hash o por el raw (legacy)
-    const snapshot = await db.collection("bookings")
-      .where("status", "in", ["confirmed", "pending", "error"])
-      .get();
-
-    const bookingDoc = snapshot.docs.find(doc => {
-      const d = doc.data();
-      return d.cancelToken === hashedInput || d.cancelToken === rawToken;
-    });
-
-    if (!bookingDoc) {
-      return NextResponse.json({ error: "Token inválido o reserva ya cancelada" }, { status: 404, headers });
-    }
-
-    const data = bookingDoc.data();
-
-    // 1. Google Calendar
-    if (data.googleEventId) {
-      try {
-        await cancelAppointment(data.googleEventId);
-      } catch (calError) {
-        console.error("Google Calendar delete error:", calError);
-      }
-    }
-
-    // 2. Firebase status update
-    await bookingDoc.ref.update({
-      status: 'cancelled',
-      cancelledAt: new Date().toISOString()
-    });
-
-    // 3. Notificación
-    if (data.client_email) {
-      try {
-        await sendCancellationEmail({
-          to: data.client_email,
-          customerName: data.client_name,
-          serviceName: data.service_name || "Servicio en AG Beauty",
-          startTime: `${data.date}T${data.start_time}:00`
-        });
-      } catch (emailError) {
-        console.error("Email notification error:", emailError);
-      }
-    }
-
+    await cancelBookingByToken(rawToken);
     return NextResponse.json({ success: true }, { status: 200, headers });
-
-  } catch (error) {
-    console.error("❌ Error grave en cancelación:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500, headers });
+  } catch (error: any) {
+    console.error("❌ Error grave en cancelación pública:", error);
+    const status = error.message === "INVALID_TOKEN" ? 403 : 500;
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status, headers });
   }
 }

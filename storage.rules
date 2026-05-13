@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Función para verificar si el usuario es administrador
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == "ana@tudominio.com" || 
+        request.auth.token.email == "eneekoruiz@gmail.com"
+      );
+    }
+
+    match /{allPaths=**} {
+      // Lectura pública de imágenes y recursos
+      allow read: if true;
+      // Escritura restringida a administradores
+      allow write: if isAdmin();
+    }
+  }
+}

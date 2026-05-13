@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getFirebaseAdminApp, requireAdminFromIdToken } from '@/lib/firebaseAdmin';
-import { createBooking } from '@/lib/bookingService'; 
+import { getFirebaseAdminApp, getDb, requireAdminFromIdToken } from '@/lib/firebaseAdmin';
+import { createBooking, cancelBookingByToken } from '@/lib/bookingService'; 
 import { getBusySlots, cancelAppointment } from '@/lib/googleCalendar'; 
 import { sendCancellationEmail } from '@/lib/notifications';
 import { z } from 'zod';
@@ -112,59 +112,29 @@ export async function DELETE(request: Request) {
   const rawCancelToken = searchParams.get('token');
   const authHeader = request.headers.get("authorization");
 
-  if (!id) return NextResponse.json({ error: 'Falta ID' }, { status: 400, headers });
+  if (!id && !rawCancelToken) {
+    return NextResponse.json({ error: 'Falta ID o Token' }, { status: 400, headers });
+  }
 
   try {
-    const db = getFirebaseAdminApp().firestore();
-    const docRef = db.collection('bookings').doc(id);
-    const docSnap = await docRef.get();
-    
-    if (!docSnap.exists) return NextResponse.json({ error: 'No existe' }, { status: 404, headers });
-    
-    const data = docSnap.data() as any;
-    let isAuthorized = false;
-
-    // 1. Verificar Admin
+    let isAdmin = false;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
         const token = authHeader.split("Bearer ")[1];
         await requireAdminFromIdToken(token);
-        isAuthorized = true;
+        isAdmin = true;
       } catch (err) {}
     }
 
-    // 2. Verificar Token de Cliente (SHA-256)
-    if (!isAuthorized && rawCancelToken) {
-      const hashedInput = crypto.createHash('sha256').update(rawCancelToken).digest('hex');
-      if (data.cancelToken === hashedInput || data.cancelToken === rawCancelToken) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403, headers });
-    }
-
-    // Proceso de cancelación
-    if (data.client_email) {
-        try {
-          await sendCancellationEmail({
-            to: data.client_email,
-            customerName: data.client_name || "Cliente",
-            serviceName: data.service_name || "Servicio",
-            startTime: `${data.date}T${data.start_time}:00`
-          });
-        } catch (e) { console.error("Email error:", e); }
-    }
-
-    if (data?.googleEventId) {
-      try { await cancelAppointment(data.googleEventId); } catch (e) {}
-    }
+    // Usamos el ID si es admin, o el token si es cliente
+    const identifier = (isAdmin && id) ? id : (rawCancelToken || id || "");
     
-    await docRef.delete();
+    await cancelBookingByToken(identifier, isAdmin);
+    
     return NextResponse.json({ success: true }, { status: 200, headers });
-  } catch (error) { 
+  } catch (error: any) { 
     console.error("Error en DELETE /api/bookings:", error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500, headers }); 
+    const status = error.message === "INVALID_TOKEN" ? 403 : error.message === "BOOKING_NOT_FOUND" ? 404 : 500;
+    return NextResponse.json({ error: error.message || 'Error interno' }, { status, headers }); 
   }
 }

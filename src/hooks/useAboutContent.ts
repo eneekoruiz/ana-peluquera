@@ -21,23 +21,35 @@ export interface InstagramPost {
   link?: string;
 }
 
+export type Language = 'es' | 'en' | 'eu';
+
+type Localized<T extends string> = {
+  [K in `${T}_${Language}`]?: string;
+};
+
 /** Contenido completo de la página Quiénes Somos. */
-export interface AboutContent {
-  story_p1_es?: string; story_p1_en?: string; story_p1_eu?: string;
-  story_p2_es?: string; story_p2_en?: string; story_p2_eu?: string;
-  story_p3_es?: string; story_p3_en?: string; story_p3_eu?: string;
-  value1_title_es?: string; value1_title_en?: string; value1_title_eu?: string;
-  value1_desc_es?: string;  value1_desc_en?: string;  value1_desc_eu?: string;
-  value2_title_es?: string; value2_title_en?: string; value2_title_eu?: string;
-  value2_desc_es?: string;  value2_desc_en?: string;  value2_desc_eu?: string;
-  value3_title_es?: string; value3_title_en?: string; value3_title_eu?: string;
-  value3_desc_es?: string;  value3_desc_en?: string;  value3_desc_eu?: string;
+export type AboutContent = {
   ana_photo_url?: string;
   salon_photo_url?: string;
   instagram_handle?: string;
   feed_posts?: InstagramPost[];
-  [key: string]: any; // Para soportar firmas dinámicas de indexación
-}
+} & Localized<'main_title'> 
+  & Localized<'main_subtitle'> 
+  & Localized<'storyTitle'> 
+  & Localized<'story_p1'> 
+  & Localized<'story_p2'> 
+  & Localized<'story_p3'> 
+  & Localized<'valuesTitle'> 
+  & Localized<'value1_title'> 
+  & Localized<'value1_desc'> 
+  & Localized<'value2_title'> 
+  & Localized<'value2_desc'> 
+  & Localized<'value3_title'> 
+  & Localized<'value3_desc'> 
+  & Localized<'teamTitle'> 
+  & Localized<'anaRole'> 
+  & Localized<'feedTitle'> 
+  & Localized<'feedSubtitle'>;
 
 // Referencia directa al documento 'main' en la colección 'about_us'
 const ABOUT_DOC_REF = doc(db, "about_us", "main");

@@ -33,20 +33,8 @@ const ALL_SLOTS = [
   "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30"
 ];
 
-const DEFAULT_SCHEDULE = [
-  { dayId: 1, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
-  { dayId: 2, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
-  { dayId: 3, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
-  { dayId: 4, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
-  { dayId: 5, isActive: true, morningStart: "09:00", morningEnd: "13:00", afternoonStart: "15:00", afternoonEnd: "19:00" },
-  { dayId: 6, isActive: true, morningStart: "09:00", morningEnd: "14:00", afternoonStart: "", afternoonEnd: "" },
-  { dayId: 0, isActive: false, morningStart: "", morningEnd: "", afternoonStart: "", afternoonEnd: "" },
-];
-
-const defaultStaff: Employee[] = [
-  { id: "ana_id", name: "Ana", skills: ["peluqueria", "masajes"], priority: 1, schedule: DEFAULT_SCHEDULE },
-  { id: "refuerzo_id", name: "Refuerzo", skills: ["peluqueria"], priority: 2, schedule: DEFAULT_SCHEDULE }
-];
+// Hardcoded DEFAULT_SCHEDULE and defaultStaff removed. 
+// We now wait for settings to load from Firebase to avoid using outdated business data.
 
 const timeToMinutes = (t: string) => {
   if (!t || !t.includes(":")) return 0;
@@ -78,7 +66,7 @@ const Reservation = () => {
   const { isEditingView } = useAuth(); 
   const { lang, t } = useLanguage();
   const { data: dbServices = [], isLoading: loadingServices } = useServices();
-  const { data: settings } = useAdminSettings();
+  const { data: settings, isLoading: loadingSettings } = useAdminSettings();
   
   const { data: pageContent } = useServicesPageContent();
   const updatePageContent = useUpdateServicesPageContent();
@@ -258,7 +246,7 @@ const Reservation = () => {
     };
   }, [dateStr, submitted, slotsRetryTick]);
 
-  const currentStaff = (settings as any)?.staff || defaultStaff;
+  const currentStaff = (settings as any)?.staff || [];
 
   const { occupiedSlots } = useMemo(() => {
     if (!service || !selectedDate || isFetchingSlots) {
@@ -388,7 +376,7 @@ const Reservation = () => {
 
   const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
 
-  if (isCheckingStatus) {
+  if (isCheckingStatus || loadingSettings || loadingServices) {
     return (
       <div className="pt-16 min-h-screen flex items-center justify-center bg-warm-white">
         <div className="flex flex-col items-center gap-4">
@@ -429,7 +417,7 @@ const Reservation = () => {
             <div className="flex flex-col gap-4 max-w-sm mx-auto">
               <Button 
                 variant="hero" 
-                className="w-full h-16 text-lg font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-900/20 transition-all border-none group" 
+                className="w-full h-16 text-lg font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-900/20 transition-all border-none group relative overflow-hidden" 
                 asChild
               >
                 <a 
@@ -439,7 +427,9 @@ const Reservation = () => {
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
-                  <MessageCircle size={24} className="mr-3 group-hover:scale-110 transition-transform" /> Reservar por WhatsApp
+                  <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
+                  <MessageCircle size={24} className="mr-3 group-hover:scale-110 transition-transform relative z-10" /> 
+                  <span className="relative z-10">Reservar por WhatsApp</span>
                 </a>
               </Button>
               

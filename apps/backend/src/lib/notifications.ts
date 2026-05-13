@@ -3,7 +3,7 @@
  */
 
 import { Resend } from "resend";
-import { getFirebaseAdminApp } from "./firebaseAdmin";
+import { getFirebaseAdminApp, getDb } from "./firebaseAdmin";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eneko-ruiz.vercel.app";
@@ -168,8 +168,7 @@ export async function sendAdminAlert(params: AdminAlertParams): Promise<void> {
 
   let dynamicAdminEmail = ADMIN_EMAIL;
   try {
-    const db = getFirebaseAdminApp().firestore();
-    const adminDoc = await db.collection("settings").doc("admin").get();
+    const adminDoc = await getDb().collection("settings").doc("admin").get();
     if (adminDoc.exists && adminDoc.data()?.email) {
       dynamicAdminEmail = adminDoc.data()?.email;
     }

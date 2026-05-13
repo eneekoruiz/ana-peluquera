@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
-import { getFirebaseAdminApp } from "@/lib/firebaseAdmin";
+import { getFirebaseAdminApp, getDb } from "@/lib/firebaseAdmin";
 import { registerCalendarWatch } from "@/lib/calendarWebhookSync";
 import { cookies } from "next/headers";
 
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const { tokens } = await oauth2Client.getToken(code);
 
     if (tokens.refresh_token) {
-      const db = getFirebaseAdminApp().firestore();
+      const db = getDb();
       
       await db.collection("settings").doc("admin").set(
         { google_refresh_token: tokens.refresh_token },

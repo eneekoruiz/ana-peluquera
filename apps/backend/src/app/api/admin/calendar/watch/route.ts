@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { registerCalendarWatch } from "@/lib/calendarWebhookSync";
-import { db } from "@/lib/firebaseAdmin";
+import { getDb } from "@/lib/firebaseAdmin";
 import { readCalendarWatchConfig } from "@/lib/calendarWebhookSync";
 import { requireAdminRequest } from "@/lib/auth";
 
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const headers = getCorsHeaders(request);
 
   try {
-    const settingsSnap = await db.collection("settings").doc("admin").get();
+    const settingsSnap = await getDb().collection("settings").doc("admin").get();
     const settingsData = settingsSnap.data() as Record<string, unknown> | undefined;
     const watchConfig = readCalendarWatchConfig(settingsData);
     const googleLinked = !!settingsData?.google_refresh_token;

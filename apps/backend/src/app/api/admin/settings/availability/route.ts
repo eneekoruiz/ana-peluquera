@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireAdminRequest } from '@/lib/auth';
 import { getAvailableSlots } from '@/lib/bookingService';
 
-// Configuración de CORS para permitir que el frontend (8080) consulte al backend (3001)
+// Configuración de CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -20,6 +21,12 @@ export async function OPTIONS() {
  * Consulta tanto Firebase como Google Calendar (respetando la lógica de sándwich).
  */
 export async function GET(request: Request) {
+  // 🛡️ SEGURIDAD: Solo admins pueden consultar disponibilidad detallada
+  const auth = await requireAdminRequest(request);
+  if (!auth.authorized) {
+    return auth.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date'); // Se espera formato 'YYYY-MM-DD'
 

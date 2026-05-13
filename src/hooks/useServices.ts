@@ -19,6 +19,8 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string)
   });
 };
 
+export type Language = 'es' | 'en' | 'eu';
+
 export interface DBService {
   id: string;
   slug: string;
@@ -38,7 +40,18 @@ export interface DBService {
   phase3_min: number | null;
   sort_order: number | null;
   visible: boolean | null;
-  [key: string]: any;
+  // Campos legacy/fallbacks
+  name?: string;
+  description?: string;
+}
+
+export interface ServicesPageContent {
+  title_es?: string;
+  title_en?: string;
+  title_eu?: string;
+  subtitle_es?: string;
+  subtitle_en?: string;
+  subtitle_eu?: string;
 }
 
 /** Hook para obtener los servicios DIRECTAMENTE desde Firebase */
@@ -79,13 +92,13 @@ export const getLocalizedDescription = (svc: DBService, lang: string) => {
 
 // 🔥 NUEVO: Hooks para editar el Título y Subtítulo de la página
 export const useServicesPageContent = () => {
-  return useQuery({
+  return useQuery<ServicesPageContent>({
     queryKey: ["services_page_content"],
     queryFn: async () => {
       const ref = doc(db, "site_content", "services_page");
       const snap = await withTimeout(getDoc(ref), QUERY_TIMEOUT_MS, "Timeout cargando contenido");
       if (!snap.exists()) return {};
-      return snap.data();
+      return snap.data() as ServicesPageContent;
     },
     retry: 1,
   });
@@ -94,7 +107,7 @@ export const useServicesPageContent = () => {
 export const useUpdateServicesPageContent = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (updates: any) => {
+    mutationFn: async (updates: Partial<ServicesPageContent>) => {
       const ref = doc(db, "site_content", "services_page");
       const snap = await getDoc(ref);
       if (!snap.exists()) await setDoc(ref, updates);

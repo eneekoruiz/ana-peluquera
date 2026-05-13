@@ -4,10 +4,9 @@
 
 import imageCompression from "browser-image-compression";
 
-const CLOUD_NAME = "dty7oivjy";
-const UPLOAD_PRESET = "ana-peluqueria";
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dty7oivjy";
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "ana-peluqueria";
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-const CLOUDINARY_DESTROY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/destroy`;
 
 const API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY;
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";

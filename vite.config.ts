@@ -35,6 +35,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@ana-peluquera/scheduler": path.resolve(__dirname, "./packages/scheduler/src"),
     },
   },
   build: {

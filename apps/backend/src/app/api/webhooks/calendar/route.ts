@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebaseAdmin";
+import { getDb } from "@/lib/firebaseAdmin";
 import { readCalendarWatchConfig } from "@/lib/calendarWebhookSync";
 import { processCalendarWebhook } from "@/lib/calendarWebhookSync";
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const settingsSnap = await db.collection("settings").doc("admin").get();
+    const settingsSnap = await getDb().collection("settings").doc("admin").get();
     const watchConfig = readCalendarWatchConfig(settingsSnap.data());
 
     if (!watchConfig) {

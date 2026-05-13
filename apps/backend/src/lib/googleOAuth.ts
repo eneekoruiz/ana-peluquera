@@ -1,9 +1,9 @@
 import { google } from 'googleapis';
-import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
+import { getFirebaseAdminApp, getDb } from '@/lib/firebaseAdmin';
 
 // 🚀 PASO 3: Obtener un cliente de calendario listo para usar según la peluquería
 export async function getCalendarClientForSalon(salonId: string) {
-  const db = getFirebaseAdminApp().firestore();
+  const db = getDb();
   const doc = await db.collection('salons').doc(salonId).get();
   
   if (!doc.exists) {

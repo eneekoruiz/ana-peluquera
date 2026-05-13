@@ -1,8 +1,9 @@
 import { google } from "googleapis";
-import { db } from "./firebaseAdmin"; 
+import { getDb } from "./firebaseAdmin"; 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import { getOverlappingIntervals } from "@ana-peluquera/scheduler";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -38,7 +39,7 @@ async function getOAuth2Client() {
   );
 
   // Leemos la llave maestra de Ana desde Firebase
-  const doc = await db.collection("settings").doc("admin").get();
+  const doc = await getDb().collection("settings").doc("admin").get();
   const data = doc.data();
   const refreshToken = data?.google_refresh_token;
 
@@ -99,56 +100,11 @@ function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end
   return null;
 }
 
-function getOverlappingIntervals(intervals: BusyInterval[], maxCapacity: number): BusyInterval[] {
-    if (intervals.length === 0 || maxCapacity === 0) return [];
-    
-    const events: { time: number, type: 'start' | 'end', isAppointment?: boolean, weight: number }[] = [];
-    for (const interval of intervals) {
-        // Si es un Bloqueo Total (ej. Médico), pesa como toda la capacidad. Si es CITA, pesa 1.
-        const weight = interval.isTotalBlock ? maxCapacity : 1;
-        events.push({ time: interval.start.valueOf(), type: 'start', isAppointment: interval.isAppointment, weight });
-        events.push({ time: interval.end.valueOf(), type: 'end', isAppointment: interval.isAppointment, weight });
-    }
-    events.sort((a, b) => a.time - b.time || (a.type === 'end' ? -1 : 1));
-
-    let active = 0; let fullPeriodStart: number | null = null; const busyPeriods: BusyInterval[] = [];
-    let currentIsAppt = false;
-
-    for (const event of events) {
-        if (event.type === 'start') {
-            active += event.weight;
-            if (active >= maxCapacity && fullPeriodStart === null) {
-              fullPeriodStart = event.time;
-              currentIsAppt = event.isAppointment || false;
-            }
-        } else {
-            if (active >= maxCapacity && fullPeriodStart !== null && (active - event.weight) < maxCapacity) {
-                busyPeriods.push({ 
-                  start: dayjs(fullPeriodStart).tz(TZ), 
-                  end: dayjs(event.time).tz(TZ),
-                  isAppointment: currentIsAppt 
-                });
-                fullPeriodStart = null;
-            }
-            active -= event.weight;
-        }
-    }
-    if (busyPeriods.length === 0) return [];
-    const merged: BusyInterval[] = []; let current = busyPeriods[0];
-    for (let i = 1; i < busyPeriods.length; i++) {
-        if (current.end.valueOf() >= busyPeriods[i].start.valueOf()) {
-            current.end = current.end.valueOf() > busyPeriods[i].end.valueOf() ? current.end : busyPeriods[i].end;
-            current.isAppointment = current.isAppointment && busyPeriods[i].isAppointment;
-        } else { merged.push(current); current = busyPeriods[i]; }
-    }
-    merged.push(current); return merged;
-}
-
 export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[], rawEventIds: string[] }> {
   // 🚀 AWAIT CRÍTICO para el nuevo sistema
   const calendar = await getCalendar();
   
-  const settingsDoc = await db.collection("settings").doc("admin").get();
+  const settingsDoc = await getDb().collection("settings").doc("admin").get();
   const settingsData = settingsDoc.data() || {};
   
   const settings: AdminSettings = {
@@ -233,10 +189,17 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       return w.daysOfWeek.includes(day.day());
     }).length;
     
-    if (workers === 0) {
+    const isEmergencyClosed = settings.todayClosed && dateStr === settings.todayClosedDate;
+    const isInVacation = settings.vacationRanges.some(range => dateStr >= range.start && dateStr <= range.end);
+
+    if (workers === 0 || isEmergencyClosed || isInVacation) {
       finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false, isTotalBlock: true });
     } else {
-      finalBusy.push(...getOverlappingIntervals(intervals, workers));
+      finalBusy.push(...getOverlappingIntervals(intervals, workers, (val) => val.valueOf()).map(range => ({
+        start: dayjs(range.start).tz(TZ),
+        end: dayjs(range.end).tz(TZ),
+        isAppointment: false
+      })));
     }
   }
   return { busy: finalBusy, rawEventIds }; 

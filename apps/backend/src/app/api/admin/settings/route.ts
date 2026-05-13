@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getFirebaseAdminApp } from '@/lib/firebaseAdmin';
+import { getFirebaseAdminApp, getDb } from '@/lib/firebaseAdmin';
 import { requireAdminRequest } from '@/lib/auth';
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app')
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   if (!auth.authorized) return auth.response;
 
   try {
-    const db = getFirebaseAdminApp().firestore();
+    const db = getDb();
     const adminDoc = await db.collection('settings').doc('admin').get();
 
     if (!adminDoc.exists) {

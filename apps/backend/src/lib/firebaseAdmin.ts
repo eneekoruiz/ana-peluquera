@@ -49,7 +49,7 @@ export function getFirebaseAdminApp(): admin.app.App {
  */
 async function getAuthorizedAdminEmail(): Promise<string | null> {
   try {
-    const db = getFirebaseAdminApp().firestore();
+    const db = getDb();
     const adminDoc = await db.collection("settings").doc("admin").get();
     
     if (!adminDoc.exists) {
@@ -102,6 +102,7 @@ export async function isAllowedAdminEmail(email: string | null | undefined) {
   return authorizedEmail ? email.toLowerCase() === authorizedEmail.toLowerCase() : false;
 }
 
-// Añade esto al final de firebaseAdmin.ts
-export const db = getFirebaseAdminApp().firestore();
-export const authAdmin = getFirebaseAdminApp().auth();
+// 🛠️ FIX: En lugar de exportar instancias estáticas que se inicializan al arrancar el módulo,
+// exportamos funciones getter. Esto evita errores de "Missing Service Account" en Cold Starts de Vercel.
+export const getDb = () => getFirebaseAdminApp().firestore();
+export const getAuthAdmin = () => getFirebaseAdminApp().auth();

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebaseAdmin";
+import { getDb } from "@/lib/firebaseAdmin";
 import { registerCalendarWatch, readCalendarWatchConfig } from "@/lib/calendarWebhookSync";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   try {
     // 2. Leer la configuración actual de la base de datos
-    const settingsSnap = await db.collection("settings").doc("admin").get();
+    const settingsSnap = await getDb().collection("settings").doc("admin").get();
     const settings = settingsSnap.data() || {};
     const watchConfig = readCalendarWatchConfig(settings);
 

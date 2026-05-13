@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkCalendarSyncStatus } from '@/lib/googleCalendar';
 import { isRateLimited, getRateLimitResponse } from '@/lib/rateLimiter';
 import { requireAdminRequest } from '@/lib/auth';
-import { db } from '@/lib/firebaseAdmin';
+import { getDb } from '@/lib/firebaseAdmin';
 import { readCalendarWatchConfig, registerCalendarWatch } from '@/lib/calendarWebhookSync';
 import dayjs from 'dayjs';
 
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     // 🚀 AUTO-RENEWAL: Si el webhook expira pronto, lo renovamos
     if (status.status === 'connected') {
       try {
-        const settingsSnap = await db.collection("settings").doc("admin").get();
+        const settingsSnap = await getDb().collection("settings").doc("admin").get();
         const watchConfig = readCalendarWatchConfig(settingsSnap.data());
         
         if (watchConfig?.expiration) {
