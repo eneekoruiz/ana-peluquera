@@ -68,8 +68,12 @@ export async function GET(request: Request) {
     }));
 
     return NextResponse.json(publicSlots, { headers });
-  } catch (error) {
-    return NextResponse.json({ error: 'Error' }, { status: 500, headers });
+  } catch (error: any) {
+    console.error("❌ Error en GET /api/bookings:", error);
+    if (error.message === "CALENDAR_DISCONNECTED") {
+      return NextResponse.json({ error: "MAINTENANCE_MODE" }, { status: 503, headers });
+    }
+    return NextResponse.json({ error: 'Error al cargar disponibilidad' }, { status: 500, headers });
   }
 }
 

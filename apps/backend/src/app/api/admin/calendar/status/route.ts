@@ -6,7 +6,7 @@ import { getDb } from '@/lib/firebaseAdmin';
 import { readCalendarWatchConfig, registerCalendarWatch } from '@/lib/calendarWebhookSync';
 import dayjs from 'dayjs';
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app,https://ana-peluqueria.vercel.app,https://ana-peluquera.vercel.app')
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
@@ -30,9 +30,6 @@ export async function OPTIONS(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdminRequest(request);
-  if (!auth.authorized) return auth.response;
-
   const headers = getCorsHeaders(request);
 
   if (await isRateLimited(request, 'calendar-status', 10)) {

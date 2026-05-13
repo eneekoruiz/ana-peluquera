@@ -191,13 +191,15 @@ const Reservation = () => {
         const response = await fetch(`${API_BASE_URL}/bookings?date=${dateStr}`, {
           signal: controller.signal,
         });
-        if (!response.ok) throw new Error("Fallo en la red");
-        
-        const data = await response.json();
-        
-        if (data.error === "MAINTENANCE_MODE") {
-          setIsCalendarOffline(true);
-          return;
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          if (response.status === 503 || data.error === "MAINTENANCE_MODE") {
+            setIsCalendarOffline(true);
+            return;
+          }
+          throw new Error("Fallo en la red");
         }
 
         const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => {
