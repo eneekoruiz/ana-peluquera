@@ -11,7 +11,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getGoogleOAuthUrl,
   useCalendarWatchStatus,
-  useRegisterCalendarWatch,
   useCalendarHealth,
 } from "@/hooks/useCalendarWatch";
 
@@ -222,7 +221,6 @@ const AdminDashboard = () => {
   const { logout } = useAuth();
   const { data: watchStatus, isFetching: watchStatusLoading, refetch: refetchWatchStatus } = useCalendarWatchStatus();
   const { data: calendarHealth, isLoading: healthLoading } = useCalendarHealth();
-  const registerWatch = useRegisterCalendarWatch();
 
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -243,7 +241,9 @@ const AdminDashboard = () => {
 
   const todayStr = getLocalDateStr();
   const isTodayClosed = settings?.today_closed && settings?.today_closed_date === todayStr;
-  
+  const isCalendarConnected = calendarHealth?.status === 'connected';
+  const isBookingEffectivelyEnabled = settings?.bookings_enabled !== false && isCalendarConnected;
+
   const hasGoogleOAuth = !!watchStatus?.googleLinked;
   const hasActiveWatch = !!watchStatus?.configured;
   const watchExpiration = watchStatus?.expiration
@@ -252,15 +252,6 @@ const AdminDashboard = () => {
 
   const handleConnectGoogle = () => {
     window.location.href = getGoogleOAuthUrl();
-  };
-
-  const handleEnableWatch = async () => {
-    try {
-      await registerWatch.mutateAsync();
-      await refetchWatchStatus();
-    } catch {
-      // El toast de error ya se gestiona en el hook.
-    }
   };
 
   return (
@@ -291,8 +282,8 @@ const AdminDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-border/50">
                   <div className="flex flex-col md:items-center pt-2 md:pt-0">
                     <span className="text-muted-foreground text-sm mb-1">Reservas Web:</span>
-                    <span className={`font-semibold text-lg ${settings?.bookings_enabled !== false ? 'text-green-600' : 'text-red-600'}`}>
-                      {settings?.bookings_enabled !== false ? 'Activas' : 'Pausadas'}
+                    <span className={`font-semibold text-lg ${isBookingEffectivelyEnabled ? 'text-green-600' : 'text-red-600'}`}>
+                      {isBookingEffectivelyEnabled ? 'Activas' : (settings?.bookings_enabled === false ? 'Pausadas (Manual)' : 'Pausadas (Fallo Sync)')}
                     </span>
                   </div>
                   <div className="flex flex-col md:items-center pt-4 md:pt-0">
@@ -304,13 +295,13 @@ const AdminDashboard = () => {
                   <div className="flex flex-col md:items-center pt-4 md:pt-0">
                     <span className="text-muted-foreground text-sm mb-1">Estado de la Sincronización:</span>
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full animate-pulse ${calendarHealth?.status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                      <span className={`font-semibold text-lg ${calendarHealth?.status === 'connected' ? 'text-green-600' : 'text-red-600'}`}>
-                        {healthLoading ? 'Verificando...' : (calendarHealth?.status === 'connected' ? 'Conectado y Operativo' : 'DESCONECTADO')}
+                      <div className={`w-3 h-3 rounded-full ${isCalendarConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                      <span className={`font-semibold text-lg ${isCalendarConnected ? 'text-green-600' : 'text-red-600'}`}>
+                        {healthLoading ? 'Verificando...' : (isCalendarConnected ? 'Conectado y Operativo' : 'DESCONECTADO')}
                       </span>
                     </div>
-                    {calendarHealth?.status === 'disconnected' && (
-                      <p className="text-[10px] text-red-500 mt-1 font-bold animate-bounce">⚠️ RECONEXIÓN REQUERIDA</p>
+                    {!isCalendarConnected && !healthLoading && (
+                      <p className="text-[10px] text-red-500 mt-1 font-bold animate-bounce text-center">⚠️ ACCIÓN REQUERIDA: RECONECTAR GOOGLE</p>
                     )}
                   </div>
                 </div>
@@ -322,15 +313,18 @@ const AdminDashboard = () => {
           <ScrollReveal delay={60}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
               
-              <div className={`rounded-xl p-5 border flex items-center justify-between cursor-pointer transition-all hover:shadow-md ${settings?.bookings_enabled !== false ? "bg-card border-border" : "bg-red-50 border-red-200"}`}
+              <div className={`rounded-xl p-5 border flex items-center justify-between cursor-pointer transition-all hover:shadow-md ${isBookingEffectivelyEnabled ? "bg-card border-border" : "bg-red-50 border-red-200"}`}
                 onClick={() => updateSettings.mutate({ bookings_enabled: !settings?.bookings_enabled })}>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Estado de la Web</p>
-                  <p className={`text-base font-serif ${settings?.bookings_enabled !== false ? "text-green-700" : "text-red-600"}`}>
-                    {settings?.bookings_enabled !== false ? "Reservas Abiertas" : "Reservas Pausadas"}
+                  <p className={`text-base font-serif ${isBookingEffectivelyEnabled ? "text-green-700" : "text-red-600"}`}>
+                    {isBookingEffectivelyEnabled ? "Reservas Abiertas" : (settings?.bookings_enabled === false ? "Reservas Pausadas" : "Bloqueado por Error")}
                   </p>
+                  {!isCalendarConnected && settings?.bookings_enabled !== false && (
+                    <p className="text-[9px] text-red-500 font-bold mt-1 uppercase">Error de Calendario</p>
+                  )}
                 </div>
-                <Power size={24} className={settings?.bookings_enabled !== false ? "text-green-600" : "text-red-500"} />
+                <Power size={24} className={isBookingEffectivelyEnabled ? "text-green-600" : "text-red-500"} />
               </div>
 
               <button type="button" onClick={() => {
@@ -348,13 +342,25 @@ const AdminDashboard = () => {
                 onClick={handleConnectGoogle} 
                 className={`rounded-xl p-5 border text-left hover:shadow-md transition-all ${hasGoogleOAuth ? "bg-blue-50/50 border-blue-200" : "bg-card border-border"}`}
               >
-                <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Sincronización</p>
-                <p className={`text-base font-serif flex items-center gap-2 ${hasGoogleOAuth ? "text-blue-700" : "text-foreground"}`}>
-                  <CalendarCheck size={18} className={hasGoogleOAuth ? "text-blue-600" : "text-muted-foreground"} /> 
-                  {hasGoogleOAuth ? "Google Conectado" : "Vincular Google"}
-                </p>
-                {!hasGoogleOAuth && (
-                  <p className="text-[10px] text-muted-foreground mt-1 truncate">Conecta para sincronizar</p>
+                <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Google Calendar</p>
+                <div className="flex items-center justify-between">
+                  <p className={`text-base font-serif flex items-center gap-2 ${hasGoogleOAuth ? "text-blue-700" : "text-foreground"}`}>
+                    <CalendarCheck size={18} className={hasGoogleOAuth ? "text-blue-600" : "text-muted-foreground"} /> 
+                    {hasGoogleOAuth ? "Vinculado" : "Vincular Google"}
+                  </p>
+                  {hasGoogleOAuth && hasActiveWatch && (
+                    <div className="flex items-center gap-1.5 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-green-200">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      Sync Live
+                    </div>
+                  )}
+                </div>
+                {hasGoogleOAuth ? (
+                   <p className="text-[10px] text-muted-foreground mt-1 truncate">
+                     {hasActiveWatch ? `Sincronización activa (Auto-renovación)` : "Haz clic para refrescar conexión"}
+                   </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground mt-1 truncate">Conecta para sincronizar citas</p>
                 )}
               </button>
 
@@ -364,45 +370,6 @@ const AdminDashboard = () => {
                   <Smartphone size={18} className="shrink-0 mt-0.5" /> 
                   Usa tu Google Calendar del móvil para ver, crear o borrar reservas.
                 </p>
-              </div>
-
-              <div className="rounded-xl p-5 border bg-card border-border text-left sm:col-span-2 lg:col-span-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Webhook Google Calendar</p>
-                    <p className={`text-base font-serif ${hasActiveWatch ? "text-green-700" : "text-foreground"}`}>
-                      {hasActiveWatch ? "Sincronización Total Activa" : "Sincronización Manual Requerida"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {hasActiveWatch
-                        ? `Todo funciona automáticamente. Expira: ${watchExpiration || "sin fecha"}`
-                        : "El sistema intentará conectarse solo al vincular Google, pero puedes activarlo aquí si falla."}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleConnectGoogle}
-                    >
-                      {hasGoogleOAuth ? "Reconectar Google" : "Conectar Google"}
-                    </Button>
-
-                    <Button
-                      variant="hero"
-                      size="sm"
-                      onClick={handleEnableWatch}
-                      disabled={!hasGoogleOAuth || registerWatch.isPending || watchStatusLoading}
-                    >
-                      {registerWatch.isPending
-                        ? "Activando..."
-                        : hasActiveWatch
-                          ? "Renovar webhook"
-                          : "Activar webhook"}
-                    </Button>
-                  </div>
-                </div>
               </div>
 
             </div>

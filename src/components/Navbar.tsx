@@ -6,8 +6,7 @@ import LanguageSelector from "@/components/LanguageSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
-// Lazy loading para ThemeToggle
-const ThemeToggle = lazy(() => import("@/components/ThemeToggle"));
+
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
@@ -61,9 +60,6 @@ const Navbar = () => {
           </ul>
 
           <div className="flex items-center gap-4">
-            <Suspense fallback={<div className="w-8 h-8" />}>
-              <ThemeToggle />
-            </Suspense>
             <LanguageSelector />
             
             {isAdmin && (
@@ -114,11 +110,7 @@ const Navbar = () => {
                 </Link>
               </li>
             ))}
-            <li className="py-2 flex justify-center">
-              <Suspense fallback={<div className="w-8 h-8" />}>
-                <ThemeToggle />
-              </Suspense>
-            </li>
+
           </ul>
         </div>
       )}
