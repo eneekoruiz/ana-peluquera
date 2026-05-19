@@ -6,16 +6,26 @@ import { requireAdminFromIdToken } from "./firebaseAdmin";
  * Extrae el token, verifica identidad y confirma rol de administrador.
  */
 export async function requireAdminRequest(request: Request) {
+  let idToken: string | null = null;
   const authHeader = request.headers.get("authorization");
   
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    idToken = authHeader.split("Bearer ")[1];
+  } else {
+    try {
+      const { searchParams } = new URL(request.url);
+      idToken = searchParams.get("token");
+    } catch (e) {
+      // Ignorar fallo de parseo
+    }
+  }
+  
+  if (!idToken) {
     return { 
       authorized: false, 
       response: NextResponse.json({ error: "Unauthorized: Missing token" }, { status: 401 }) 
     };
   }
-
-  const idToken = authHeader.split("Bearer ")[1];
 
   try {
     const user = await requireAdminFromIdToken(idToken);

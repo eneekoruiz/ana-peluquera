@@ -218,7 +218,7 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
 const AdminDashboard = () => {
   const { data: settings } = useAdminSettings();
   const updateSettings = useUpdateAdminSettings();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { data: watchStatus, isFetching: watchStatusLoading, refetch: refetchWatchStatus } = useCalendarWatchStatus();
   const { data: calendarHealth, isLoading: healthLoading } = useCalendarHealth();
 
@@ -250,8 +250,18 @@ const AdminDashboard = () => {
     ? new Date(watchStatus.expiration).toLocaleString("es-ES")
     : null;
 
-  const handleConnectGoogle = () => {
-    window.location.href = getGoogleOAuthUrl();
+  const handleConnectGoogle = async () => {
+    if (!user) {
+      toast.error("No se detectó la sesión del administrador. Por favor, inicia sesión de nuevo.");
+      return;
+    }
+    try {
+      const token = await user.getIdToken();
+      window.location.href = `${getGoogleOAuthUrl()}?token=${token}`;
+    } catch (error) {
+      console.error("Error obteniendo token:", error);
+      toast.error("No se pudo iniciar el proceso de vinculación.");
+    }
   };
 
   return (
