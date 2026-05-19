@@ -337,13 +337,28 @@ const AdminDashboard = () => {
                 <Power size={24} className={isBookingEffectivelyEnabled ? "text-green-600" : "text-red-500"} />
               </div>
 
-              <button type="button" onClick={() => {
-                if (isTodayClosed) updateSettings.mutate({ today_closed: false, today_closed_date: null });
-                else updateSettings.mutate({ today_closed: true, today_closed_date: todayStr });
-              }} className={`rounded-xl p-5 border text-left transition-all hover:shadow-md ${isTodayClosed ? "bg-red-50 border-red-200" : "bg-card border-border"}`}>
+              <button 
+                type="button" 
+                disabled={updateSettings.isPending}
+                onClick={() => {
+                  if (isTodayClosed) updateSettings.mutate({ today_closed: false, today_closed_date: null });
+                  else updateSettings.mutate({ today_closed: true, today_closed_date: todayStr });
+                }} 
+                className={`rounded-xl p-5 border text-left transition-all hover:shadow-md ${updateSettings.isPending ? "opacity-50 cursor-not-allowed" : ""} ${isTodayClosed ? "bg-red-50 border-red-200" : "bg-card border-border"}`}
+              >
                 <p className="text-[10px] text-muted-foreground uppercase mb-1.5">Apertura Diaria</p>
                 <p className={`text-base font-serif flex items-center gap-2 ${isTodayClosed ? "text-red-600" : "text-green-700"}`}>
-                  <AlertTriangle size={18} /> {isTodayClosed ? "Cerrado por Urgencia" : "Salón Abierto Hoy"}
+                  {updateSettings.isPending ? (
+                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : (
+                    <AlertTriangle size={18} />
+                  )} 
+                  {isTodayClosed ? "Cerrado por Urgencia" : "Salón Abierto Hoy"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  {isTodayClosed 
+                    ? "Haz clic para volver a abrir el salón" 
+                    : "Haz clic para cerrar por urgencia hoy"}
                 </p>
               </button>
 

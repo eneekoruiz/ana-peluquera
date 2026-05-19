@@ -54,18 +54,17 @@ export interface ServicesPageContent {
   subtitle_eu?: string;
 }
 
-/** Hook para obtener los servicios DIRECTAMENTE desde Firebase */
+/** Hook para obtener los servicios desde el backend con caché */
 export const useServices = (includeHidden = false) => {
   return useQuery({
     queryKey: ["services", includeHidden],
     queryFn: async () => {
-      const q = query(collection(db, "services"));
-      const snapshot = await withTimeout(getDocs(q), QUERY_TIMEOUT_MS, "Timeout cargando servicios");
+      const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001/api" : "/api");
+      const response = await fetch(`${apiBase}/services`);
+      if (!response.ok) throw new Error("Error al obtener servicios");
       
-      let data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as DBService[];
+      const services = await response.json();
+      let data = services as DBService[];
 
       if (!includeHidden) {
         data = data.filter(s => s.visible !== false); 
@@ -74,6 +73,8 @@ export const useServices = (includeHidden = false) => {
       data.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       return data;
     },
+    staleTime: 15 * 60 * 1000, // Cacheamos 15 minutos para eliminar latencias
+    gcTime: 30 * 60 * 1000,
     retry: 1,
   });
 };

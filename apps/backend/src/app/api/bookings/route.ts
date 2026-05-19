@@ -50,8 +50,14 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const start = searchParams.get('start');
-  const end = searchParams.get('end');
+  let start = searchParams.get('start');
+  let end = searchParams.get('end');
+  const date = searchParams.get('date');
+
+  if (date) {
+    start = `${date}T00:00:00`;
+    end = `${date}T23:59:59`;
+  }
 
   if (!start || !end) {
     return NextResponse.json({ error: 'Missing range' }, { status: 400, headers });

@@ -4,7 +4,8 @@ import React, { useState, useCallback } from "react";
 import {
   ArrowRight, Clock, Timer, Scissors, Hand, Sparkles,
   Paintbrush, Droplets, Palette, Flower2, CircleDot,
-  Eye, EyeOff, Plus, GripVertical, Trash2
+  Eye, EyeOff, Plus, GripVertical, Trash2,
+  Heart, Smile, Waves, Leaf, Flame, Gem, Star, Wand2, Wind, Crown
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -29,6 +30,16 @@ const iconOptions = [
   { name: "palette", Icon: Palette, label: "Paleta" },
   { name: "flower-2", Icon: Flower2, label: "Flor" },
   { name: "circle-dot", Icon: CircleDot, label: "Punto" },
+  { name: "heart", Icon: Heart, label: "Corazón" },
+  { name: "smile", Icon: Smile, label: "Sonrisa" },
+  { name: "waves", Icon: Waves, label: "Ondas" },
+  { name: "leaf", Icon: Leaf, label: "Hoja" },
+  { name: "flame", Icon: Flame, label: "Masaje caliente" },
+  { name: "gem", Icon: Gem, label: "Gema" },
+  { name: "star", Icon: Star, label: "Estrella" },
+  { name: "wand-2", Icon: Wand2, label: "Varita" },
+  { name: "wind", Icon: Wind, label: "Secador" },
+  { name: "crown", Icon: Crown, label: "Corona" }
 ];
 
 const iconMap: Record<string, LucideIcon> = iconOptions.reduce(
@@ -279,7 +290,7 @@ const IconSelector = ({ currentIcon, onSave }: { currentIcon: string, onSave: (v
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-12 left-0 z-50 bg-white border border-border shadow-xl rounded-xl p-2 grid grid-cols-4 gap-1 w-48">
+          <div className="absolute top-12 left-0 z-50 bg-white border border-border shadow-xl rounded-xl p-2 grid grid-cols-6 gap-1.5 w-72">
             {iconOptions.map((opt) => (
               <button key={opt.name} onClick={() => { onSave(opt.name); setIsOpen(false); }} className={cn("p-2 rounded-md flex items-center justify-center", currentIcon === opt.name ? "bg-sand-dark text-white" : "hover:bg-sand-light/50 text-muted-foreground")}>
                 <opt.Icon size={16} />
@@ -416,46 +427,46 @@ const Services = () => {
                     return (
                       <ScrollReveal key={svc.id} delay={i * 80}>
                         <div className={cn(
-                          "bg-white rounded-2xl p-6 md:p-8 mb-6 transition-all duration-500 border relative group",
+                          "bg-white rounded-2xl p-4 md:p-5 mb-4 transition-all duration-500 border relative group",
                           isHidden 
                             ? "border-dashed border-amber-200 opacity-60 bg-amber-50/5 grayscale" 
                             : "border-sand-dark/10 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] hover:-translate-y-1"
                         )}>
                           
                           {isEditingView && (
-                            <div className="absolute top-8 left-2 text-muted-foreground/30 cursor-grab hover:text-sand-dark active:cursor-grabbing">
-                              <GripVertical size={20} />
+                            <div className="absolute top-6 left-2 text-muted-foreground/30 cursor-grab hover:text-sand-dark active:cursor-grabbing">
+                              <GripVertical size={18} />
                             </div>
                           )}
 
-                          <div className={cn("flex flex-col md:flex-row items-start gap-6", isEditingView && "pl-6")}>
+                          <div className={cn("flex flex-col md:flex-row items-start gap-4", isEditingView && "pl-6")}>
                             {/* Icono / Visual */}
                             <div className="shrink-0">
                               {isEditingView ? (
                                 <IconSelector currentIcon={svc.icon_name || "scissors"} onSave={(newIcon) => handleUpdateField(svc.id, "icon_name", newIcon)} />
                               ) : (
-                                <div className="w-14 h-14 rounded-2xl bg-warm-white flex items-center justify-center border border-sand-dark/5 group-hover:bg-sand-light/20 transition-colors duration-500">
-                                  <StaticIcon size={24} className="text-sand-dark" strokeWidth={1.5} />
+                                <div className="w-12 h-12 rounded-xl bg-warm-white flex items-center justify-center border border-sand-dark/5 group-hover:bg-sand-light/20 transition-colors duration-500">
+                                  <StaticIcon size={20} className="text-sand-dark" strokeWidth={1.5} />
                                 </div>
                               )}
                             </div>
 
                             {/* Contenido Principal */}
                             <div className="flex-1 min-w-0 w-full">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                                 <EditableText
                                   value={name}
                                   onSave={async (v) => handleUpdateField(svc.id, `label_${lang}`, v)}
                                   isEditing={isEditingView}
-                                  as="h3" className="font-serif text-xl md:text-2xl text-foreground tracking-tight"
+                                  as="h3" className="font-serif text-lg md:text-xl text-foreground tracking-tight"
                                 />
                                 
                                 <div className="flex items-center gap-3">
                                   {isEditingView ? (
                                     <EditablePrice priceCents={svc.price_cents} onSave={(val) => handleUpdateField(svc.id, "price_cents", val)} />
                                   ) : (
-                                    <div className="bg-sand-light/10 px-3 py-1 rounded-full">
-                                      <span className="text-lg font-serif font-medium text-sand-dark tabular-nums">
+                                    <div className="bg-sand-light/10 px-2.5 py-0.5 rounded-full">
+                                      <span className="text-base font-serif font-medium text-sand-dark tabular-nums">
                                         {formatPriceValue(svc, t("services.from"))}
                                       </span>
                                     </div>
@@ -468,11 +479,11 @@ const Services = () => {
                                   value={description}
                                   onSave={async (v) => handleUpdateField(svc.id, `description_${lang}`, v)}
                                   isEditing={isEditingView}
-                                  as="p" className="text-sm md:text-base text-muted-foreground leading-relaxed mb-6 font-light italic" placeholder="Añade una descripción..."
+                                  as="p" className="text-xs md:text-sm text-muted-foreground leading-relaxed mb-3 font-light italic" placeholder="Añade una descripción..."
                                 />
                               </div>
 
-                              <div className="flex items-center justify-between pt-4 border-t border-sand-dark/5">
+                              <div className="flex items-center justify-between pt-3 border-t border-sand-dark/5">
                                 <div className="flex items-center gap-4">
                                   {isEditingView ? (
                                     <EditableTiming 

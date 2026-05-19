@@ -5,7 +5,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import { toast } from "sonner";
 import { Check, ArrowLeft, ArrowRight, User, Phone, Mail, Calendar as CalendarIcon, MessageCircle, Clock, Plus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import { Scissors, Hand, Sparkles, Paintbrush, Droplets, Palette, Flower2, CircleDot } from "lucide-react";
+import { Scissors, Hand, Sparkles, Paintbrush, Droplets, Palette, Flower2, CircleDot, Heart, Smile, Waves, Leaf, Flame, Gem, Star, Wand2, Wind, Crown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useServices, getLocalizedLabel } from "@/hooks/useServices";
 import { useAdminSettings } from "@/hooks/useAdminSettings";
@@ -22,6 +22,8 @@ import { calculateAvailability, Employee } from "@/lib/scheduler";
 const iconMap: Record<string, LucideIcon> = {
   scissors: Scissors, hand: Hand, sparkles: Sparkles, paintbrush: Paintbrush,
   droplets: Droplets, palette: Palette, "flower-2": Flower2, "circle-dot": CircleDot,
+  heart: Heart, smile: Smile, waves: Waves, leaf: Leaf, flame: Flame, gem: Gem,
+  star: Star, "wand-2": Wand2, wind: Wind, crown: Crown
 };
 
 type Step = 1 | 2 | 3 | 4;
@@ -153,11 +155,45 @@ const Reservation = () => {
   }, []);
 
 
-  useEffect(() => {
-    if (selectedDate && settings && isDateDisabled(selectedDate)) {
-      setSelectedDate(undefined);
+  const getFirstEnabledDate = (currentSettings: any, closedToday: boolean) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    
+    // Buscar en los próximos 30 días el primer día que no esté bloqueado
+    for (let i = 0; i < 30; i++) {
+      const checkDate = new Date(date);
+      checkDate.setDate(date.getDate() + i);
+      
+      const day = checkDate.getDay();
+      if (day === 0) continue; // Domingo cerrado
+      
+      const dStr = getLocalDateStr(checkDate);
+      if (closedToday && dStr === todayStr) continue;
+      
+      let inVacation = false;
+      if (currentSettings?.vacation_ranges && currentSettings.vacation_ranges.length > 0) {
+        for (const range of currentSettings.vacation_ranges) {
+          if (dStr >= range.start && dStr <= range.end) {
+            inVacation = true;
+            break;
+          }
+        }
+      }
+      if (inVacation) continue;
+      
+      return checkDate;
     }
-  }, [settings]);
+    return undefined;
+  };
+
+  useEffect(() => {
+    if (settings) {
+      if (!selectedDate || isDateDisabled(selectedDate)) {
+        const firstOpen = getFirstEnabledDate(settings, isEmergencyClosedToday);
+        setSelectedDate(firstOpen);
+      }
+    }
+  }, [settings, isEmergencyClosedToday]);
 
   useEffect(() => {
     if (!dateStr) {
@@ -378,6 +414,10 @@ const Reservation = () => {
 
   const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
 
+  const getServiceDescription = (svc: any) => {
+    return (lang === "en" ? svc?.description_en : lang === "eu" ? svc?.description_eu : svc?.description_es) || svc?.description_es || svc?.description || "";
+  };
+
   if (isCheckingStatus || loadingSettings || loadingServices) {
     return (
       <div className="pt-16 min-h-screen flex items-center justify-center bg-warm-white">
@@ -391,35 +431,35 @@ const Reservation = () => {
 
   if (bookingsDisabled || isCalendarOffline) {
     return (
-      <main className="pt-16 min-h-screen flex items-center justify-center bg-warm-white relative overflow-hidden">
+      <main className="pt-20 pb-8 md:pt-24 min-h-screen flex items-center justify-center bg-warm-white relative overflow-hidden">
         {/* Elementos decorativos Elite */}
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-sand-light/20 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-cream/30 blur-[120px] rounded-full" />
 
-        <div className="container max-w-lg text-center px-6 relative z-10">
+        <div className="container max-w-lg text-center px-4 md:px-6 relative z-10">
           <ScrollReveal>
-            <div className="w-24 h-24 bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-sm border border-amber-100/50 transform rotate-3">
-              <CalendarIcon size={40} className="text-amber-600" />
+            <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-8 shadow-sm border border-amber-100/50 transform rotate-3">
+              <CalendarIcon className="text-amber-600 w-8 h-8 md:w-10 md:h-10" />
             </div>
             
-            <h1 className="font-serif text-4xl md:text-5xl text-foreground mb-6 leading-tight">
+            <h1 className="font-serif text-2xl md:text-4xl lg:text-5xl text-foreground mb-4 md:mb-6 leading-tight">
               {isCalendarOffline ? "Actualizando Nuestra Agenda" : "Pausa de Bienestar"}
             </h1>
             
-            <div className="w-16 h-1 bg-sand-dark mx-auto mb-8 rounded-full" />
+            <div className="w-16 h-1 bg-sand-dark mx-auto mb-4 md:mb-8 rounded-full" />
             
-            <p className="text-lg text-muted-foreground mb-10 leading-relaxed font-sans max-w-md mx-auto">
+            <p className="text-sm md:text-base lg:text-lg text-muted-foreground mb-6 md:mb-10 leading-relaxed font-sans max-w-md mx-auto">
               {isCalendarOffline 
                 ? "Estamos realizando una mejora técnica en nuestra agenda digital para garantizarte la mejor experiencia. ¡No te preocupes! Ana sigue disponible para ti."
                 : "Nuestro sistema de reservas online está descansando momentáneamente."}
               <br />
-              <span className="block mt-4 font-medium text-foreground">Puedes reservar tu cita directamente por estas vías:</span>
+              <span className="block mt-3 md:mt-4 font-medium text-foreground text-xs md:text-sm">Puedes reservar tu cita directamente por estas vías:</span>
             </p>
             
-            <div className="flex flex-col gap-4 max-w-sm mx-auto">
+            <div className="flex flex-col gap-3 md:gap-4 max-w-xs md:max-w-sm mx-auto">
               <Button 
                 variant="hero" 
-                className="w-full h-16 text-lg font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-900/20 transition-all border-none group relative overflow-hidden" 
+                className="w-full h-12 md:h-16 text-sm md:text-lg font-semibold bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-green-900/20 transition-all border-none group relative overflow-hidden" 
                 asChild
               >
                 <a 
@@ -430,23 +470,23 @@ const Reservation = () => {
                   rel="noopener noreferrer"
                 >
                   <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
-                  <MessageCircle size={24} className="mr-3 group-hover:scale-110 transition-transform relative z-10" /> 
+                  <MessageCircle size={20} className="mr-2.5 md:mr-3 group-hover:scale-110 transition-transform relative z-10" /> 
                   <span className="relative z-10">Reservar por WhatsApp</span>
                 </a>
               </Button>
               
               <Button 
                 variant="outline" 
-                className="w-full h-16 text-lg font-medium border-border hover:bg-card hover:border-sand-dark transition-all bg-white" 
+                className="w-full h-12 md:h-16 text-sm md:text-lg font-medium border-border hover:bg-card hover:border-sand-dark transition-all bg-white" 
                 asChild
               >
                 <a href={`tel:+${SALON_PHONE}`}>
-                  <Phone size={24} className="mr-3 text-sand-dark" /> Llamar al Salón
+                  <Phone size={20} className="mr-2.5 md:mr-3 text-sand-dark" /> Llamar al Salón
                 </a>
               </Button>
             </div>
 
-            <p className="mt-12 text-xs text-muted-foreground uppercase tracking-widest-plus opacity-60">
+            <p className="mt-8 md:mt-12 text-[10px] md:text-xs text-muted-foreground uppercase tracking-widest-plus opacity-60">
               AG Beauty Salon · Siente la Diferencia
             </p>
           </ScrollReveal>
@@ -702,6 +742,11 @@ const Reservation = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                               <span className="block text-base font-medium">{name}</span>
+                              {getServiceDescription(svc) && (
+                                <span className={`block text-xs my-1 font-light italic line-clamp-2 ${isSelected ? "text-cream/80" : "text-muted-foreground/80"}`}>
+                                  {getServiceDescription(svc)}
+                                </span>
+                              )}
                               <span className={`text-xs ${isSelected ? "text-cream/70" : "text-muted-foreground"}`}>
                                 {duration} min {priceStr && `· ${priceStr}`}
                               </span>
