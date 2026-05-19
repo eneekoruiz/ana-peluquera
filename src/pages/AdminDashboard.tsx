@@ -230,7 +230,7 @@ const AdminDashboard = () => {
     const googleSyncStatus = searchParams.get("google_sync");
 
     if (googleStatus === "success" || googleSyncStatus === "success") {
-      toast.success("Google Calendar conectado. Activa ahora el webhook para sincronización en tiempo real.");
+      toast.success("¡Google Calendar conectado y sincronizado con éxito!");
       void refetchWatchStatus();
       setSearchParams({});
     } else if (googleStatus === "error" || googleSyncStatus === "error") {
