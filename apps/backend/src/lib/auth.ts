@@ -13,10 +13,17 @@ export async function requireAdminRequest(request: Request) {
     idToken = authHeader.split("Bearer ")[1];
   } else {
     try {
-      const { searchParams } = new URL(request.url);
-      idToken = searchParams.get("token");
+      const url = new URL(request.url, "http://localhost");
+      idToken = url.searchParams.get("token");
     } catch (e) {
       // Ignorar fallo de parseo
+    }
+    // Fallback de seguridad: análisis por expresión regular
+    if (!idToken) {
+      const match = request.url.match(/[?&]token=([^&]+)/);
+      if (match) {
+        idToken = decodeURIComponent(match[1]);
+      }
     }
   }
   
