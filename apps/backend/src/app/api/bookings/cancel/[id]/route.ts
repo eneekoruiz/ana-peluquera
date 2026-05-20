@@ -1,24 +1,8 @@
 import { NextResponse } from "next/server";
 import { cancelBookingByToken } from "@/lib/bookingService";
+import { getCorsHeaders } from '@/lib/cors';
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app,https://ana-peluqueria.vercel.app,https://ana-peluquera.vercel.app')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
-function getCorsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get('origin') || '';
-  const allowOrigin = ALLOWED_ORIGINS.includes(origin)
-    ? origin
-    : (ALLOWED_ORIGINS[0] || '');
-
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Vary': 'Origin',
-  };
-}
+// Use shared `getCorsHeaders` from `src/lib/cors`.
 
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 204, headers: getCorsHeaders(request) });

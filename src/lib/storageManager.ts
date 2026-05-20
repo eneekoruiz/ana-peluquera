@@ -9,7 +9,7 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "ana-pelu
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
 
 const API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY;
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001/api" : "/api")).replace(/\/$/, "");
 
 const COMPRESSION_OPTIONS = {
   maxSizeMB: 0.8,

@@ -2,26 +2,12 @@ import { NextResponse } from 'next/server';
 import { checkCalendarSyncStatus } from '@/lib/googleCalendar';
 import { isRateLimited, getRateLimitResponse } from '@/lib/rateLimiter';
 import { requireAdminRequest } from '@/lib/auth';
+import { getCorsHeaders } from '@/lib/cors';
 import { getDb } from '@/lib/firebaseAdmin';
 import { readCalendarWatchConfig, registerCalendarWatch } from '@/lib/calendarWebhookSync';
 import dayjs from 'dayjs';
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app,https://ana-peluqueria.vercel.app,https://ana-peluquera.vercel.app')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
-function getCorsHeaders(request: Request) {
-  const origin = request.headers.get('origin');
-  const isAllowed = origin && ALLOWED_ORIGINS.includes(origin);
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : (ALLOWED_ORIGINS[0] || ''),
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Vary': 'Origin',
-  };
-}
+// Use shared `getCorsHeaders` from `src/lib/cors`.
 
 export const dynamic = 'force-dynamic';
 

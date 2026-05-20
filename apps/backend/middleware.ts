@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyFirebaseIdToken, isAllowedAdminEmail } from "./src/lib/firebaseAdmin";
-
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://eneko-ruiz.vercel.app,https://ana-peluqueria.vercel.app,https://ana-peluquera.vercel.app')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+import { getCorsHeaders } from "./src/lib/cors";
 
 function getBearerToken(req: NextRequest): string | null {
   const header = req.headers.get("authorization");  
@@ -18,19 +14,6 @@ function getBearerToken(req: NextRequest): string | null {
   if (cookieToken) return cookieToken;
 
   return null;
-}
-
-function getCorsHeaders(req: NextRequest) {
-  const origin = req.headers.get('origin') || '';
-  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : (ALLOWED_ORIGINS[0] || '');
-  
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
-  };
 }
 
 export const config = {

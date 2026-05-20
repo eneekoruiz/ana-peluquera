@@ -3,26 +3,12 @@ import { registerCalendarWatch } from "@/lib/calendarWebhookSync";
 import { getDb } from "@/lib/firebaseAdmin";
 import { readCalendarWatchConfig } from "@/lib/calendarWebhookSync";
 import { requireAdminRequest } from "@/lib/auth";
+import { getCorsHeaders } from '@/lib/cors';
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
-function getCorsHeaders(request: Request) {
-  const origin = request.headers.get('origin');
-  const isAllowed = origin && ALLOWED_ORIGINS.includes(origin);
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : (ALLOWED_ORIGINS[0] || ''),
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Vary': 'Origin',
-  };
-}
+// Use shared `getCorsHeaders` from `src/lib/cors`.
 
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 200, headers: getCorsHeaders(request) });

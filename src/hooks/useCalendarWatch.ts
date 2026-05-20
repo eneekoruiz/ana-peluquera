@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
-const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3001/api").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001/api" : "/api")).replace(/\/$/, "");
 
 export type CalendarWatchStatus = {
   ok: boolean;

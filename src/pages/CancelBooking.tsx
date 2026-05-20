@@ -26,7 +26,7 @@ const CancelBooking = () => {
     setView("loading");
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "https://ag-beauty-backend.vercel.app/api";
+      const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001/api" : "/api")).replace(/\/$/, "");
       
       const response = await fetch(`${API_URL}/bookings/cancel/${token}`, {
         method: "DELETE", 
