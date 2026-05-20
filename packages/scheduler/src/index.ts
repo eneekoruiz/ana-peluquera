@@ -43,8 +43,28 @@ export const isOverlap = (a: Interval, b: Interval, buffer: number = 0): boolean
 /**
  * Comprueba si un servicio está dentro del horario laboral.
  */
-export const isWithinWorkingHours = (schedule: WorkDay, start: number, end: number): boolean => {
+export const isWithinWorkingHours = (schedule: WorkDay & { morningStart?: string; morningEnd?: string; afternoonStart?: string; afternoonEnd?: string; isSplit?: boolean }, start: number, end: number): boolean => {
   if (!schedule.isActive) return false;
+
+  // Nuevo formato (morningStart/End + afternoonStart/End)
+  if (schedule.morningStart !== undefined) {
+    const slots: { start: string; end: string }[] = [];
+    if (schedule.morningStart && schedule.morningEnd) {
+      slots.push({ start: schedule.morningStart, end: schedule.morningEnd });
+    }
+    if (schedule.isSplit && schedule.afternoonStart && schedule.afternoonEnd) {
+      slots.push({ start: schedule.afternoonStart, end: schedule.afternoonEnd });
+    }
+    if (slots.length === 0) return false;
+    return slots.some(slot => {
+      const slotStart = timeToMinutes(slot.start);
+      const slotEnd = timeToMinutes(slot.end);
+      return start >= slotStart && end <= slotEnd;
+    });
+  }
+
+  // Formato original (slots[])
+  if (!schedule.slots || schedule.slots.length === 0) return false;
   return schedule.slots.some(slot => {
     const slotStart = timeToMinutes(slot.start);
     const slotEnd = timeToMinutes(slot.end);
