@@ -13,7 +13,7 @@ const bookingSchema = z.object({
   client_email: z.string().email().optional().nullable(),
   client_phone: z.string().min(9),
   service_id: z.string(),
-  service_name: z.string(),
+  service_name: z.string().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   start_time: z.string(),
   end_time: z.string(),
