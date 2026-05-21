@@ -239,19 +239,14 @@ const Reservation = () => {
         }
 
         const formattedBookings = (Array.isArray(data) ? data : []).map((slot: any) => {
-
-          let st = "00:00";
-          let et = "23:59";
+          const rawStart = slot.start || slot.startTime || slot.start_time || "";
+          const rawEnd = slot.end || slot.endTime || slot.end_time || "";
           
-          if (slot.start_time && !slot.start_time.includes('T')) st = slot.start_time;
-          else if (slot.startTime && slot.startTime.includes('T')) st = slot.startTime.split('T')[1].substring(0, 5);
-          else if (slot.start && slot.start.includes('T')) st = slot.start.split('T')[1].substring(0, 5);
-
-          if (slot.end_time && !slot.end_time.includes('T')) et = slot.end_time;
-          else if (slot.endTime && slot.endTime.includes('T')) et = slot.endTime.split('T')[1].substring(0, 5);
-          else if (slot.end && slot.end.includes('T')) et = slot.end.split('T')[1].substring(0, 5);
-
-          return { ...slot, start_time: st, end_time: et };
+          return {
+            ...slot,
+            start_time: rawStart.includes('T') ? rawStart.split('T')[1].substring(0, 5) : (rawStart || "00:00"),
+            end_time: rawEnd.includes('T') ? rawEnd.split('T')[1].substring(0, 5) : (rawEnd || "23:59"),
+          };
         });
 
         if (isMounted) {

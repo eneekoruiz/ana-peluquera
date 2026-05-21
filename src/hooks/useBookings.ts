@@ -35,13 +35,17 @@ export const useBookingsByDate = (date: string) => {
       
       const data = await response.json();
       
-      // Mapeamos TODO a start_time y end_time (con barra baja) 
-      // para que el scheduler no se vuelva loco
-      return (Array.isArray(data) ? data : []).map((slot: any) => ({
-        ...slot,
-        start_time: (slot.startTime || slot.start_time || "").split('T')[1]?.substring(0, 5) || "00:00",
-        end_time: (slot.endTime || slot.end_time || "").split('T')[1]?.substring(0, 5) || "23:59",
-      }));
+      // Mapeamos los campos del backend (start/end) a lo que espera el scheduler
+      return (Array.isArray(data) ? data : []).map((slot: any) => {
+        const rawStart = slot.start || slot.startTime || slot.start_time || "";
+        const rawEnd = slot.end || slot.endTime || slot.end_time || "";
+        
+        return {
+          ...slot,
+          start_time: rawStart.includes('T') ? rawStart.split('T')[1].substring(0, 5) : "00:00",
+          end_time: rawEnd.includes('T') ? rawEnd.split('T')[1].substring(0, 5) : "23:59",
+        };
+      });
     },
     enabled: !!date,
   });
