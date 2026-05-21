@@ -10,6 +10,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useServices, useServicesPageContent, useUpdateServicesPageContent, type DBService } from "@/hooks/useServices";
+import { useAdminSettings, useUpdateAdminSettings } from "@/hooks/useAdminSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import EditableText from "@/components/cms/EditableText";
 import SortableList from "@/components/cms/SortableList";
@@ -318,8 +319,15 @@ const Services = () => {
   const { data: pageContent } = useServicesPageContent();
   const updatePageContent = useUpdateServicesPageContent();
 
+  const { data: settings } = useAdminSettings();
+  const updateSettings = useUpdateAdminSettings();
+  const hiddenCategories: string[] = (settings as any)?.hidden_categories || [];
+
   const [localOrder, setLocalOrder] = useState<Record<string, DBService[]>>({});
-  const categories = ["peluqueria", "masajes"] as const;
+  const allCategories = ["peluqueria", "masajes"] as const;
+  const categories = isEditingView 
+    ? allCategories 
+    : allCategories.filter(cat => !hiddenCategories.includes(cat));
 
   const handleUpdateField = useCallback((id: string, field: string, value: any) => {
     updateService.mutate({ id, updates: { [field]: value } });
@@ -411,6 +419,26 @@ const Services = () => {
                       {t(`booking.categories.${cat}`)}
                     </h2>
                     <div className="h-px bg-sand-dark/20 flex-1" />
+                    {isEditingView && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isHidden = hiddenCategories.includes(cat);
+                          const newHidden = isHidden
+                            ? hiddenCategories.filter((c: string) => c !== cat)
+                            : [...hiddenCategories, cat];
+                          updateSettings.mutate({ hidden_categories: newHidden });
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full transition-all shrink-0",
+                          hiddenCategories.includes(cat)
+                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300"
+                            : "bg-secondary hover:bg-secondary/80 text-muted-foreground border border-border"
+                        )}
+                      >
+                        {hiddenCategories.includes(cat) ? <><EyeOff size={12} /> Categoría Oculta</> : <><Eye size={12} /> Categoría Visible</>}
+                      </button>
+                    )}
                   </div>
                 </ScrollReveal>
 

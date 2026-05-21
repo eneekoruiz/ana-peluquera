@@ -321,7 +321,10 @@ const Reservation = () => {
   }, [occupiedSlots, isFetchingSlots]);
 
   const bookingsDisabled = settings?.bookings_enabled === false;
-  const categories = [...new Set(dbServices.map((s: any) => normalizeCategory(s.category)))].filter(Boolean) as string[];
+  const hiddenCategories = (settings as any)?.hidden_categories || [];
+  const categories = [...new Set(dbServices.map((s: any) => normalizeCategory(s.category)))]
+    .filter(Boolean)
+    .filter((cat) => !hiddenCategories.includes(cat)) as string[];
   const catLabels: Record<string, string> = { peluqueria: "Peluquería", masajes: "Masajes & Bienestar" };
 
   const displayTitle = pageContent?.[`booking_title_${lang}`] || t("booking.title");
@@ -335,7 +338,8 @@ const Reservation = () => {
     return pageContent?.[`cat_${cat}_${lang}`] || catLabels[cat] || cat;
   };
 
-  const filteredServices = selectedCategory ? dbServices.filter((s: any) => normalizeCategory(s.category) === selectedCategory) : [];
+  const activeCategory = selectedCategory || (categories.length === 1 ? categories[0] : null);
+  const filteredServices = activeCategory ? dbServices.filter((s: any) => normalizeCategory(s.category) === activeCategory) : [];
 
   const canAdvance = () => {
     if (step === 1) return !!selectedServiceId;
@@ -748,7 +752,7 @@ const Reservation = () => {
               ) : (
                 <>
                   <div className="flex gap-3 mb-6">
-                    {categories.map((cat) => (
+                    {categories.length > 1 ? categories.map((cat) => (
                       <button
                         key={cat}
                         onClick={() => { if (!isEditingView) { setSelectedCategory(cat); setSelectedServiceId(null); } }}
@@ -766,10 +770,10 @@ const Reservation = () => {
                           langLabel={langLabel}
                         />
                       </button>
-                    ))}
+                    )) : null}
                   </div>
-                  {selectedCategory && (
-                    <div className="grid grid-cols-1 gap-3">
+                  {activeCategory && (
+                    <div className={`grid grid-cols-1 gap-3 ${selectedServiceId ? 'pb-44' : ''}`}>
                       {filteredServices.map((svc: any) => {
                         const Icon = iconMap[svc.icon_name] || Scissors;
                         const isSelected = selectedServiceId === svc.id;
@@ -808,7 +812,7 @@ const Reservation = () => {
                     </div>
                   )}
 
-                  <div className="fixed left-1/2 bottom-4 z-30 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 md:bottom-6">
+                  <div className="fixed left-1/2 bottom-0 z-30 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 pb-[max(1rem,env(safe-area-inset-bottom))] md:bottom-2">
                     <div className="rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80">
                       <div className="flex items-start gap-3">
                         <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${service ? "bg-charcoal text-cream" : "bg-sand-light/60 text-sand-dark"}`}>
