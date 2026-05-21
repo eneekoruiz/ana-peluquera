@@ -772,19 +772,67 @@ const Reservation = () => {
                       </button>
                     )) : null}
                   </div>
+
+                  {/* Tarjeta de confirmación — aparece arriba al seleccionar servicio */}
+                  {service && (
+                    <div id="service-confirmation" className="mb-5 rounded-2xl border border-sand-dark/15 bg-card p-4 shadow-md animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-charcoal text-cream">
+                          <SelectedServiceIcon size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                            {t("booking.selectedService")}
+                          </p>
+                          <h3 className="truncate font-serif text-lg text-foreground leading-tight mt-0.5">
+                            {getServiceName(service)}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {selectedServiceDuration} min{selectedServicePrice && ` · ${selectedServicePrice}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-3">
+                        <Button
+                          variant="outline"
+                          className="h-11 flex-1"
+                          disabled={isEditingView}
+                          onClick={() => { if (!isEditingView) setSelectedServiceId(null); }}
+                        >
+                          {t("booking.change")}
+                        </Button>
+                        <Button
+                          variant="hero"
+                          className="h-11 flex-1 gap-2"
+                          disabled={!canAdvance() || isEditingView}
+                          onClick={() => setStep(2)}
+                        >
+                          {t("booking.next")} <ArrowRight size={16} />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {activeCategory && (
-                    <div className={`grid grid-cols-1 gap-3 ${selectedServiceId ? 'pb-44' : ''}`}>
+                    <div className="grid grid-cols-1 gap-3">
                       {filteredServices.map((svc: any) => {
                         const Icon = iconMap[svc.icon_name] || Scissors;
                         const isSelected = selectedServiceId === svc.id;
-                        const name = getServiceName(svc);
+                        const svcName = getServiceName(svc);
                         const duration = svc.duration_min || svc.durationMin || 0;
                         const priceStr = getServicePriceLabel(svc);
 
                         return (
                           <button
                             key={svc.id}
-                            onClick={() => { if(!isEditingView) setSelectedServiceId(svc.id); }}
+                            onClick={() => {
+                              if (!isEditingView) {
+                                setSelectedServiceId(svc.id);
+                                setTimeout(() => {
+                                  document.getElementById('service-confirmation')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 50);
+                              }
+                            }}
                             className={`flex items-center gap-4 p-5 rounded-lg text-left transition-all duration-200 ${!isEditingView ? 'active:scale-[0.98]' : ''} ${
                               isSelected ? "bg-charcoal text-cream shadow-md" : "bg-card text-foreground shadow-sm hover:shadow-md"
                             }`}
@@ -795,7 +843,7 @@ const Reservation = () => {
                               <Icon size={18} className={isSelected ? "text-cream" : "text-sand-dark"} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="block text-base font-medium">{name}</span>
+                              <span className="block text-base font-medium">{svcName}</span>
                               {getServiceDescription(svc) && (
                                 <span className={`block text-xs my-1 font-light italic line-clamp-2 ${isSelected ? "text-cream/80" : "text-muted-foreground/80"}`}>
                                   {getServiceDescription(svc)}
@@ -811,56 +859,6 @@ const Reservation = () => {
                       })}
                     </div>
                   )}
-
-                  <div className="fixed left-1/2 bottom-0 z-30 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 pb-[max(1rem,env(safe-area-inset-bottom))] md:bottom-2">
-                    <div className="rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                      <div className="flex items-start gap-3">
-                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${service ? "bg-charcoal text-cream" : "bg-sand-light/60 text-sand-dark"}`}>
-                          <SelectedServiceIcon size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                            {t("booking.summary")}
-                          </p>
-                          {service ? (
-                            <>
-                              <h3 className="mt-1 truncate font-serif text-lg text-foreground">
-                                {getServiceName(service)}
-                              </h3>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {selectedServiceDuration} min{selectedServicePrice && ` · ${selectedServicePrice}`}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              Elige un servicio para ver el resumen y continuar.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex gap-3">
-                        <Button
-                          variant="outline"
-                          className="h-12 flex-1"
-                          disabled={!service || isEditingView}
-                          onClick={() => {
-                            if (!isEditingView) setSelectedServiceId(null);
-                          }}
-                        >
-                          {t("booking.change")}
-                        </Button>
-                        <Button
-                          variant="hero"
-                          className="h-12 flex-1 gap-2"
-                          disabled={!canAdvance() || isEditingView}
-                          onClick={() => setStep(2)}
-                        >
-                          {t("booking.next")} <ArrowRight size={16} />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
                 </>
               )}
             </ScrollReveal>
