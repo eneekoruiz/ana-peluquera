@@ -91,7 +91,11 @@ export const isSlotAvailable = (
     let occEnd: number;
 
     // Si viene de Google Calendar (o similar) ya procesado como BusyInterval (en minutos o Date)
-    if (occ.start?.minutes !== undefined) {
+    if (occ.start && typeof occ.start.hour === 'function') {
+      // Es un objeto Day.js: extraemos la hora y minuto en su zona horaria nativa (ej: Europe/Madrid)
+      occStart = occ.start.hour() * 60 + occ.start.minute();
+      occEnd = occ.end.hour() * 60 + occ.end.minute();
+    } else if (occ.start?.minutes !== undefined) {
       occStart = occ.start.minutes;
       occEnd = occ.end.minutes;
     } else if (typeof occ.start_time === 'string') {

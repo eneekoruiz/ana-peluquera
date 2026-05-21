@@ -372,9 +372,14 @@ const QuienesSomos = () => {
                 
                 <div className="relative">
                   <span className="absolute -top-10 -left-6 text-8xl font-serif text-sand-light/40 select-none pointer-events-none">“</span>
-                  <p className="font-serif text-xl md:text-2xl lg:text-3xl text-foreground font-light leading-relaxed italic relative z-10">
-                    "El cabello es materia viva en constante movimiento. Mi filosofía no consiste en forzarlo, sino en escuchar su movimiento natural y diseñar una belleza sincera, sin artificios."
-                  </p>
+                  <EditableText
+                    value={getText('anaQuote', 'about.anaQuote')}
+                    onSave={makeSave('anaQuote')}
+                    isEditing={isEditingView}
+                    as="p"
+                    className="font-serif text-xl md:text-2xl lg:text-3xl text-foreground font-light leading-relaxed italic relative z-10 inline-block w-full"
+                    langLabel={langLabel}
+                  />
                 </div>
 
                 <div className="space-y-1 pl-4 border-l-2 border-sand-dark/30">

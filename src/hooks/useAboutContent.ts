@@ -48,6 +48,7 @@ export type AboutContent = {
   & Localized<'value3_desc'> 
   & Localized<'teamTitle'> 
   & Localized<'anaRole'> 
+  & Localized<'anaQuote'> 
   & Localized<'feedTitle'> 
   & Localized<'feedSubtitle'>;
 

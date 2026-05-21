@@ -50,6 +50,7 @@ const es = {
     value3Desc: "Un solo cliente a la vez. Un espacio exclusivo con iluminación cálida, aromas relajantes y dedicación plena a tus cinco sentidos.",
     teamTitle: "Detrás de la Marca",
     anaRole: "Fundadora & Estilista Principal",
+    anaQuote: "\"El cabello es materia viva en constante movimiento. Mi filosofía no consiste en forzarlo, sino en escuchar su movimiento natural y diseñar una belleza sincera, sin artificios.\"",
     bookCta: "Reserva tu experiencia personalizada",
   },
   magazine: {
@@ -164,6 +165,7 @@ const en: typeof es = {
     value3Desc: "One client at a time. An exclusive space with warm lighting, soothing aromas, and full dedication to your five senses.",
     teamTitle: "Behind the Brand",
     anaRole: "Founder & Lead Stylist",
+    anaQuote: "\"Hair is living matter in constant motion. My philosophy is not to force it, but to listen to its natural movement and design a sincere beauty, without artifice.\"",
     bookCta: "Book your bespoke experience",
   },
   magazine: {
@@ -278,6 +280,7 @@ const eu: typeof es = {
     value3Desc: "Bezero bakarra aldi berean. Argiztapen epela, usain lasaiak eta zure bost zentzumenetara bideratutako dedikazio osoa duen espazio esklusiboa.",
     teamTitle: "Markaren Atzean",
     anaRole: "Sortzailea eta Estilista Nagusia",
+    anaQuote: "\"Ilea etengabeko mugimenduan dagoen materia bizia da. Nire filosofia ez da indartzea, bere mugimendu naturala entzutea eta edertasun zintzoa, artifiziorik gabea diseinatzea baizik.\"",
     bookCta: "Erreserbatu zure esperientzia pertsonalizatua",
   },
   magazine: {
