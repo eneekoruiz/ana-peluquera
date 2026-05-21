@@ -88,10 +88,20 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201, headers });
   } catch (error: any) {
-    if (error.message === "MAINTENANCE_MODE") {
-      return NextResponse.json({ error: "MAINTENANCE_MODE" }, { status: 503, headers });
+    console.error("❌ Error en POST /api/bookings:", error);
+    
+    const errorMsg = error.message || 'Error interno';
+    let status = 500;
+    
+    if (errorMsg === "MAINTENANCE_MODE") {
+      status = 503;
+    } else if (errorMsg === "SLOT_OCCUPIED") {
+      status = 409;
+    } else if (errorMsg === "SERVICE_NOT_FOUND") {
+      status = 404;
     }
-    return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500, headers });
+    
+    return NextResponse.json({ error: errorMsg }, { status, headers });
   }
 }
 

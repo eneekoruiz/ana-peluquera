@@ -5,7 +5,7 @@
 import { Resend } from "resend";
 import { getFirebaseAdminApp, getDb } from "./firebaseAdmin";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
+const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder_key_to_prevent_init_crash");
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eneko-ruiz.vercel.app";
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "AG Beauty Salon <citas@anagonzalez.es>";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "ana@tudominio.com";

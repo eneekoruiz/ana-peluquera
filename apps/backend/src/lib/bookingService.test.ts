@@ -62,6 +62,11 @@ describe('BookingService', () => {
         exists: true,
         data: () => ({ name: 'Test Service', duration_min: 60 })
       });
+      // Mock settings
+      mockDb.get.mockResolvedValueOnce({
+        exists: true,
+        data: () => ({ hidden_categories: [] })
+      });
 
       // Mock busy slots (none)
       (getBusySlots as any).mockResolvedValue({ busy: [] });
@@ -97,6 +102,11 @@ describe('BookingService', () => {
       mockDb.get.mockResolvedValueOnce({
         exists: true,
         data: () => ({ name: 'Test Service', duration_min: 60 })
+      });
+      // Mock settings
+      mockDb.get.mockResolvedValueOnce({
+        exists: true,
+        data: () => ({ hidden_categories: [] })
       });
 
       // Mock busy slots (occupied)
@@ -172,6 +182,11 @@ describe('BookingService', () => {
       mockDb.get.mockResolvedValueOnce({
         exists: true,
         data: () => ({ name: 'Test Service', duration_min: 60 })
+      });
+      // Mock settings
+      mockDb.get.mockResolvedValueOnce({
+        exists: true,
+        data: () => ({ hidden_categories: [] })
       });
 
       // Mock busy slots returning the whole day blocked

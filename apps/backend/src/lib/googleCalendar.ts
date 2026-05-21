@@ -101,108 +101,114 @@ function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end
 }
 
 export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy: BusyInterval[], rawEventIds: string[] }> {
-  // 🚀 AWAIT CRÍTICO para el nuevo sistema
-  const calendar = await getCalendar();
-  
-  const settingsDoc = await getDb().collection("settings").doc("admin").get();
-  const settingsData = settingsDoc.data() || {};
-  
-  const settings: AdminSettings = {
-    workers: (settingsData.staff || []).map((w: any) => ({ id: w.id, name: w.name, daysOfWeek: w.workingDays || [], skills: w.skills || [], schedule: w.schedule })),
-    bookingsEnabled: settingsData.bookings_enabled !== false,
-    todayClosed: !!settingsData.today_closed,
-    todayClosedDate: settingsData.today_closed_date || null,
-    vacationRanges: settingsData.vacation_ranges || [],
-    google_refresh_token: settingsData.google_refresh_token
-  };
+  try {
+    // 🚀 AWAIT CRÍTICO para el nuevo sistema
+    const calendar = await getCalendar();
+    
+    const settingsDoc = await getDb().collection("settings").doc("admin").get();
+    const settingsData = settingsDoc.data() || {};
+    
+    const settings: AdminSettings = {
+      workers: (settingsData.staff || []).map((w: any) => ({ id: w.id, name: w.name, daysOfWeek: w.workingDays || [], skills: w.skills || [], schedule: w.schedule })),
+      bookingsEnabled: settingsData.bookings_enabled !== false,
+      todayClosed: !!settingsData.today_closed,
+      todayClosedDate: settingsData.today_closed_date || null,
+      vacationRanges: settingsData.vacation_ranges || [],
+      google_refresh_token: settingsData.google_refresh_token
+    };
 
-  const intervalsByDay: Record<string, BusyInterval[]> = {};
-  let curr = dayjs(dateRange.start).tz(TZ).startOf('day');
-  const limit = dayjs(dateRange.end).tz(TZ).endOf('day');
-  
-  while (curr.valueOf() <= limit.valueOf()) {
-    intervalsByDay[curr.format('YYYY-MM-DD')] = [];
-    curr = curr.add(1, 'day');
-  }
+    const intervalsByDay: Record<string, BusyInterval[]> = {};
+    let curr = dayjs(dateRange.start).tz(TZ).startOf('day');
+    const limit = dayjs(dateRange.end).tz(TZ).endOf('day');
+    
+    while (curr.valueOf() <= limit.valueOf()) {
+      intervalsByDay[curr.format('YYYY-MM-DD')] = [];
+      curr = curr.add(1, 'day');
+    }
 
-  const res = await calendar.events.list({
-    calendarId: "primary", // 🚀 Ahora usamos siempre el calendario principal del usuario logueado
-    timeMin: dayjs.tz(dateRange.start, TZ).toISOString(),
-    timeMax: dayjs.tz(dateRange.end, TZ).toISOString(),
-    singleEvents: true,
-  });
+    const res = await calendar.events.list({
+      calendarId: "primary", // 🚀 Ahora usamos siempre el calendario principal del usuario logueado
+      timeMin: dayjs.tz(dateRange.start, TZ).toISOString(),
+      timeMax: dayjs.tz(dateRange.end, TZ).toISOString(),
+      singleEvents: true,
+    });
 
-  const rawEventIds: string[] = []; 
+    const rawEventIds: string[] = []; 
 
-  for (const event of res.data.items ?? []) {
-    if (event.id) rawEventIds.push(event.id); 
+    for (const event of res.data.items ?? []) {
+      if (event.id) rawEventIds.push(event.id); 
 
-    const summary = (event.summary || "").toUpperCase();
-    const isAppointment = summary.includes("CITA");
+      const summary = (event.summary || "").toUpperCase();
+      const isAppointment = summary.includes("CITA");
 
-    const parsed = parseGoogleEvent(event.start, event.end);
-    if (!parsed) continue;
+      const parsed = parseGoogleEvent(event.start, event.end);
+      if (!parsed) continue;
 
-    const priv = event?.extendedProperties?.private ?? {};
-    const isOurAppt = priv.system === SYSTEM_MARKER;
+      const priv = event?.extendedProperties?.private ?? {};
+      const isOurAppt = priv.system === SYSTEM_MARKER;
 
-    let eventCurr = parsed.start.clone().startOf('day');
-    const eventEnd = parsed.end.clone().endOf('day');
+      let eventCurr = parsed.start.clone().startOf('day');
+      const eventEnd = parsed.end.clone().endOf('day');
 
-    while (eventCurr.valueOf() <= eventEnd.valueOf()) {
-      const dKey = eventCurr.format('YYYY-MM-DD');
-      if (intervalsByDay[dKey]) {
-        
-        // Recortamos los eventos largos para que encajen en el día actual
-        const dayStart = eventCurr.startOf('day');
-        const dayEnd = eventCurr.endOf('day');
-        const actualStart = parsed.start.isAfter(dayStart) ? parsed.start : dayStart;
-        const actualEnd = parsed.end.isBefore(dayEnd) ? parsed.end : dayEnd;
+      while (eventCurr.valueOf() <= eventEnd.valueOf()) {
+        const dKey = eventCurr.format('YYYY-MM-DD');
+        if (intervalsByDay[dKey]) {
+          
+          // Recortamos los eventos largos para que encajen en el día actual
+          const dayStart = eventCurr.startOf('day');
+          const dayEnd = eventCurr.endOf('day');
+          const actualStart = parsed.start.isAfter(dayStart) ? parsed.start : dayStart;
+          const actualEnd = parsed.end.isBefore(dayEnd) ? parsed.end : dayEnd;
 
-        if (isOurAppt && priv.phase1Min && priv.phase3Min) {
-            intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true, isTotalBlock: false });
-            intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true, isTotalBlock: false });
-        } else {
-            intervalsByDay[dKey].push({ 
-                start: actualStart, 
-                end: actualEnd, 
-                isAppointment: isAppointment, 
-                sourceEventId: (event.id as string) ?? undefined,
-                isTotalBlock: summary.includes("CERRADO") || summary.includes("BLOQUEO") || summary.includes("VACACIONES")
-            });
+          if (isOurAppt && priv.phase1Min && priv.phase3Min) {
+              intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true, isTotalBlock: false });
+              intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true, isTotalBlock: false });
+          } else {
+              intervalsByDay[dKey].push({ 
+                  start: actualStart, 
+                  end: actualEnd, 
+                  isAppointment: isAppointment, 
+                  sourceEventId: (event.id as string) ?? undefined,
+                  isTotalBlock: summary.includes("CERRADO") || summary.includes("BLOQUEO") || summary.includes("VACACIONES")
+              });
+          }
         }
+        eventCurr = eventCurr.add(1, 'day');
       }
-      eventCurr = eventCurr.add(1, 'day');
     }
-  }
 
-  const finalBusy: BusyInterval[] = [];
-  for (const [dateStr, intervals] of Object.entries(intervalsByDay)) {
-    const day = dayjs.tz(dateStr, TZ);
-    
-    // Compatibilidad con el nuevo sistema de turnos
-    const workers = settings.workers.filter((w) => {
-      if (w.schedule) {
-        const todaySched = w.schedule.find((s:any) => s.dayId === day.day());
-        return todaySched && todaySched.isActive;
+    const finalBusy: BusyInterval[] = [];
+    for (const [dateStr, intervals] of Object.entries(intervalsByDay)) {
+      const day = dayjs.tz(dateStr, TZ);
+      
+      // Compatibilidad con el nuevo sistema de turnos
+      const workers = settings.workers.filter((w) => {
+        if (w.schedule) {
+          const todaySched = w.schedule.find((s:any) => s.dayId === day.day());
+          return todaySched && todaySched.isActive;
+        }
+        return w.daysOfWeek.includes(day.day());
+      }).length;
+      
+      const isEmergencyClosed = settings.todayClosed && dateStr === settings.todayClosedDate;
+      const isInVacation = settings.vacationRanges.some(range => dateStr >= range.start && dateStr <= range.end);
+
+      if (workers === 0 || isEmergencyClosed || isInVacation) {
+        finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false, isTotalBlock: true });
+      } else {
+        finalBusy.push(...getOverlappingIntervals(intervals, workers, (val) => val.valueOf()).map(range => ({
+          start: dayjs(range.start).tz(TZ),
+          end: dayjs(range.end).tz(TZ),
+          isAppointment: false
+        })));
       }
-      return w.daysOfWeek.includes(day.day());
-    }).length;
-    
-    const isEmergencyClosed = settings.todayClosed && dateStr === settings.todayClosedDate;
-    const isInVacation = settings.vacationRanges.some(range => dateStr >= range.start && dateStr <= range.end);
-
-    if (workers === 0 || isEmergencyClosed || isInVacation) {
-      finalBusy.push({ start: day.startOf('day'), end: day.endOf('day'), isAppointment: false, isTotalBlock: true });
-    } else {
-      finalBusy.push(...getOverlappingIntervals(intervals, workers, (val) => val.valueOf()).map(range => ({
-        start: dayjs(range.start).tz(TZ),
-        end: dayjs(range.end).tz(TZ),
-        isAppointment: false
-      })));
     }
+    return { busy: finalBusy, rawEventIds };
+  } catch (error: any) {
+    if (error.message === "CALENDAR_DISCONNECTED") throw error;
+    console.error("Error en getBusySlots de Google Calendar:", error);
+    throw new Error("CALENDAR_DISCONNECTED");
   }
-  return { busy: finalBusy, rawEventIds }; 
 }
 
 export async function createAppointment(req: CreateAppointmentRequest) {

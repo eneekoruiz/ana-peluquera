@@ -131,4 +131,57 @@ describe('Algoritmo Sándwich y Saturación', () => {
     expect(occupied.has("10:00")).toBe(true);
   });
 
+  it('Caso Límite 8: Evento personal de Google Calendar (como Jajaj) bloquea todo el día', () => {
+    const onlyAna: Employee[] = [{ id: "ana", name: "Ana", skills: ["peluqueria"], priority: 1, schedule: defaultSchedule }];
+    
+    // Un evento personal (por ejemplo, todo el día "Jajaj") se representa en dayBookings
+    // (en minutos del día: de 09:00 a 20:00 cubriendo el horario laboral)
+    const dayBookings = [
+      { 
+        employee_id: "ana", 
+        status: "confirmed", 
+        start_time: "09:00", 
+        end_time: "20:00", 
+        isAppointment: false 
+      }
+    ];
+
+    const service = { category: "peluqueria", duration_min: 30, phase1_min: 30, phase2_min: 0, phase3_min: 0 };
+    const { occupied } = calculateAvailability(ALL_SLOTS, service, dayBookings, onlyAna, date, false, 0);
+
+    // Todos los slots deben estar ocupados
+    for (const slot of ALL_SLOTS) {
+      expect(occupied.has(slot)).toBe(true);
+    }
+  });
+
+  it('Caso Límite 9: Evento personal de Google Calendar bloquea slots específicos completamente', () => {
+    const onlyAna: Employee[] = [{ id: "ana", name: "Ana", skills: ["peluqueria"], priority: 1, schedule: defaultSchedule }];
+    
+    // Evento de 11:00 a 12:00
+    const dayBookings = [
+      { 
+        employee_id: "ana", 
+        status: "confirmed", 
+        start_time: "11:00", 
+        end_time: "12:00", 
+        isAppointment: false 
+      }
+    ];
+
+    const service = { category: "peluqueria", duration_min: 30, phase1_min: 30, phase2_min: 0, phase3_min: 0 };
+    const { occupied } = calculateAvailability(ALL_SLOTS, service, dayBookings, onlyAna, date, false, 0);
+
+    // El servicio empieza a las 10:45 -> termina a las 11:15 (solapa con el evento que empieza a las 11:00) -> BLOQUEADO
+    expect(occupied.has("10:45")).toBe(true);
+    // A las 11:00 (solapa con 11:00-12:00) -> BLOQUEADO
+    expect(occupied.has("11:00")).toBe(true);
+    // A las 11:30 (solapa con 11:00-12:00) -> BLOQUEADO
+    expect(occupied.has("11:30")).toBe(true);
+    // A las 12:00 (empieza justo cuando termina el evento de 11:00-12:00) -> LIBRE
+    expect(occupied.has("12:00")).toBe(false);
+    // A las 10:30 (termina a las 11:00, no solapa) -> LIBRE
+    expect(occupied.has("10:30")).toBe(false);
+  });
+
 });

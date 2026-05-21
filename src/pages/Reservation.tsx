@@ -334,6 +334,30 @@ const Reservation = () => {
   const displayStep3 = pageContent?.[`booking_step3_${lang}`] || t("booking.chooseTime");
   const displayStep4 = pageContent?.[`booking_step4_${lang}`] || t("booking.contactData");
 
+  const displaySuccessTitle = pageContent?.[`success_title_${lang}`] || "¡Reserva Confirmada!";
+  const displaySuccessSubtitle = pageContent?.[`success_subtitle_${lang}`] || "Te hemos enviado un email con todos los detalles.";
+  const displayPaymentTitle = pageContent?.[`payment_title_${lang}`] || "Información de Pago";
+  const displayPaymentDesc = pageContent?.[`payment_desc_${lang}`] || "El pago se realiza en el salón. Aceptamos efectivo, tarjeta y Bizum.";
+  const displayBizumLabel = pageContent?.[`bizum_label_${lang}`] || "Bizum:";
+  const displayBizumNumber = pageContent?.[`bizum_number_${lang}`] || "843 67 35 95";
+
+  const displayOfflineTitle = pageContent?.[`offline_title_${lang}`] || (isCalendarOffline ? "Actualizando Nuestra Agenda" : "Pausa de Bienestar");
+  const displayOfflineDesc = pageContent?.[`offline_desc_${lang}`] || (isCalendarOffline 
+    ? "Estamos realizando una mejora técnica en nuestra agenda digital para garantizarte la mejor experiencia. ¡No te preocupes! Ana sigue disponible para ti."
+    : "Nuestro sistema de reservas online está descansando momentáneamente.");
+  const displayOfflineWays = pageContent?.[`offline_ways_${lang}`] || "Puedes reservar tu cita directamente por estas vías:";
+  const displayOfflineWhatsapp = pageContent?.[`offline_whatsapp_${lang}`] || "Reservar por WhatsApp";
+  const displayOfflineCall = pageContent?.[`offline_call_${lang}`] || "Llamar al Salón";
+
+  const displaySlowTitle = pageContent?.[`slow_title_${lang}`] || "Esta agenda va un poco lenta";
+  const displaySlowDesc = pageContent?.[`slow_desc_${lang}`] || "¡Uy! Esto está tardando más de lo normal. Nuestra agenda digital está muy solicitada. Para no hacerte esperar, pulsa aquí y te agendamos directamente.";
+  const displaySlowWhatsapp = pageContent?.[`slow_whatsapp_${lang}`] || "Agendar por WhatsApp";
+  const displaySlowRetry = pageContent?.[`slow_retry_${lang}`] || "Reintentar";
+
+  const displayFullTitle = pageContent?.[`full_title_${lang}`] || "Día completo";
+  const displayFullDesc = pageContent?.[`full_desc_${lang}`] || "Lo sentimos, no quedan huecos para este servicio hoy.";
+  const displayFullChangeDay = pageContent?.[`full_change_day_${lang}`] || "Elegir otro día";
+
   const getCatLabel = (cat: string) => {
     return pageContent?.[`cat_${cat}_${lang}`] || catLabels[cat] || cat;
   };
@@ -498,19 +522,40 @@ const Reservation = () => {
               <CalendarIcon className="text-amber-600 w-8 h-8 md:w-10 md:h-10" />
             </div>
             
-            <h1 className="font-serif text-2xl md:text-4xl lg:text-5xl text-foreground mb-4 md:mb-6 leading-tight">
-              {isCalendarOffline ? "Actualizando Nuestra Agenda" : "Pausa de Bienestar"}
-            </h1>
+            <div className="mb-4 md:mb-6">
+              <EditableText
+                value={displayOfflineTitle}
+                onSave={async (val) => await updatePageContent.mutateAsync({ [`offline_title_${lang}`]: val })}
+                isEditing={isEditingView}
+                as="h1"
+                className="font-serif text-2xl md:text-4xl lg:text-5xl text-foreground leading-tight inline-block"
+                langLabel={langLabel}
+              />
+            </div>
             
             <div className="w-16 h-1 bg-sand-dark mx-auto mb-4 md:mb-8 rounded-full" />
             
-            <p className="text-sm md:text-base lg:text-lg text-muted-foreground mb-6 md:mb-10 leading-relaxed font-sans max-w-md mx-auto">
-              {isCalendarOffline 
-                ? "Estamos realizando una mejora técnica en nuestra agenda digital para garantizarte la mejor experiencia. ¡No te preocupes! Ana sigue disponible para ti."
-                : "Nuestro sistema de reservas online está descansando momentáneamente."}
+            <div className="text-sm md:text-base lg:text-lg text-muted-foreground mb-6 md:mb-10 leading-relaxed font-sans max-w-md mx-auto">
+              <EditableText
+                value={displayOfflineDesc}
+                onSave={async (val) => await updatePageContent.mutateAsync({ [`offline_desc_${lang}`]: val })}
+                isEditing={isEditingView}
+                as="p"
+                className="inline-block"
+                langLabel={langLabel}
+              />
               <br />
-              <span className="block mt-3 md:mt-4 font-medium text-foreground text-xs md:text-sm">Puedes reservar tu cita directamente por estas vías:</span>
-            </p>
+              <span className="block mt-3 md:mt-4 font-medium text-foreground text-xs md:text-sm">
+                <EditableText
+                  value={displayOfflineWays}
+                  onSave={async (val) => await updatePageContent.mutateAsync({ [`offline_ways_${lang}`]: val })}
+                  isEditing={isEditingView}
+                  as="span"
+                  className="inline-block"
+                  langLabel={langLabel}
+                />
+              </span>
+            </div>
             
             <div className="flex flex-col gap-3 md:gap-4 max-w-xs md:max-w-sm mx-auto">
               <Button 
@@ -527,7 +572,16 @@ const Reservation = () => {
                 >
                   <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
                   <MessageCircle size={20} className="mr-2.5 md:mr-3 group-hover:scale-110 transition-transform relative z-10" /> 
-                  <span className="relative z-10">Reservar por WhatsApp</span>
+                  <span className="relative z-10">
+                    <EditableText
+                      value={displayOfflineWhatsapp}
+                      onSave={async (val) => await updatePageContent.mutateAsync({ [`offline_whatsapp_${lang}`]: val })}
+                      isEditing={isEditingView}
+                      as="span"
+                      className="inline-block"
+                      langLabel={langLabel}
+                    />
+                  </span>
                 </a>
               </Button>
               
@@ -537,7 +591,15 @@ const Reservation = () => {
                 asChild
               >
                 <a href={`tel:+${SALON_PHONE}`}>
-                  <Phone size={20} className="mr-2.5 md:mr-3 text-sand-dark" /> Llamar al Salón
+                  <Phone size={20} className="mr-2.5 md:mr-3 text-sand-dark" />
+                  <EditableText
+                    value={displayOfflineCall}
+                    onSave={async (val) => await updatePageContent.mutateAsync({ [`offline_call_${lang}`]: val })}
+                    isEditing={isEditingView}
+                    as="span"
+                    className="inline-block"
+                    langLabel={langLabel}
+                  />
                 </a>
               </Button>
             </div>
@@ -565,12 +627,27 @@ const Reservation = () => {
               <Check size={32} className="text-green-600" />
             </div>
             
-            <h1 className="font-serif text-3xl text-foreground mb-2" style={{ lineHeight: "1.1" }}>
-              ¡Reserva Confirmada!
-            </h1>
-            <p className="text-muted-foreground mb-8 text-sm">
-              Te hemos enviado un email con todos los detalles.
-            </p>
+            <div className="mb-2">
+              <EditableText
+                value={displaySuccessTitle}
+                onSave={async (val) => await updatePageContent.mutateAsync({ [`success_title_${lang}`]: val })}
+                isEditing={isEditingView}
+                as="h1"
+                className="font-serif text-3xl text-foreground inline-block animate-in fade-in duration-300"
+                style={{ lineHeight: "1.1" }}
+                langLabel={langLabel}
+              />
+            </div>
+            <div className="text-muted-foreground mb-8 text-sm">
+              <EditableText
+                value={displaySuccessSubtitle}
+                onSave={async (val) => await updatePageContent.mutateAsync({ [`success_subtitle_${lang}`]: val })}
+                isEditing={isEditingView}
+                as="p"
+                className="inline-block"
+                langLabel={langLabel}
+              />
+            </div>
 
             <div className="bg-card rounded-xl p-6 shadow-md border border-border text-left mb-8 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-sand-dark"></div>
@@ -619,14 +696,44 @@ const Reservation = () => {
             </div>
 
             {service?.price && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-                <h3 className="font-medium text-sm text-amber-900 mb-2">Información de Pago</h3>
-                <p className="text-xs text-amber-800 mb-2">
-                  El pago se realiza en el salón. Aceptamos efectivo, tarjeta y Bizum.
-                </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-left">
+                <div className="mb-2">
+                  <EditableText
+                    value={displayPaymentTitle}
+                    onSave={async (val) => await updatePageContent.mutateAsync({ [`payment_title_${lang}`]: val })}
+                    isEditing={isEditingView}
+                    as="h3"
+                    className="font-medium text-sm text-amber-900 inline-block"
+                    langLabel={langLabel}
+                  />
+                </div>
+                <div className="text-xs text-amber-800 mb-2">
+                  <EditableText
+                    value={displayPaymentDesc}
+                    onSave={async (val) => await updatePageContent.mutateAsync({ [`payment_desc_${lang}`]: val })}
+                    isEditing={isEditingView}
+                    as="p"
+                    className="inline-block"
+                    langLabel={langLabel}
+                  />
+                </div>
                 <div className="flex items-center justify-between bg-white rounded px-3 py-2 border border-amber-300">
-                  <span className="text-xs text-amber-900">Bizum:</span>
-                  <span className="font-mono text-sm font-bold text-amber-900">843 67 35 95</span>
+                  <EditableText
+                    value={displayBizumLabel}
+                    onSave={async (val) => await updatePageContent.mutateAsync({ [`bizum_label_${lang}`]: val })}
+                    isEditing={isEditingView}
+                    as="span"
+                    className="text-xs text-amber-900 inline-block"
+                    langLabel={langLabel}
+                  />
+                  <EditableText
+                    value={displayBizumNumber}
+                    onSave={async (val) => await updatePageContent.mutateAsync({ [`bizum_number_${lang}`]: val })}
+                    isEditing={isEditingView}
+                    as="span"
+                    className="font-mono text-sm font-bold text-amber-900 inline-block"
+                    langLabel={langLabel}
+                  />
                 </div>
               </div>
             )}
@@ -987,18 +1094,49 @@ const Reservation = () => {
                     <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4">
                       <Clock size={22} className="text-amber-700" />
                     </div>
-                    <h3 className="font-serif text-lg text-foreground mb-2">Esta agenda va un poco lenta</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-sm">
-                      ¡Uy! Esto está tardando más de lo normal. Nuestra agenda digital está muy solicitada. Para no hacerte esperar, pulsa aquí y te agendamos directamente.
-                    </p>
-                    <div className="w-full flex flex-col gap-3 max-w-xs">
+                    <div className="mb-2">
+                      <EditableText
+                        value={displaySlowTitle}
+                        onSave={async (val) => await updatePageContent.mutateAsync({ [`slow_title_${lang}`]: val })}
+                        isEditing={isEditingView}
+                        as="h3"
+                        className="font-serif text-lg text-foreground inline-block"
+                        langLabel={langLabel}
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-sm">
+                      <EditableText
+                        value={displaySlowDesc}
+                        onSave={async (val) => await updatePageContent.mutateAsync({ [`slow_desc_${lang}`]: val })}
+                        isEditing={isEditingView}
+                        as="p"
+                        className="inline-block"
+                        langLabel={langLabel}
+                      />
+                    </div>
+                    <div className="w-full flex flex-col gap-3 max-w-xs items-center">
                       <Button variant="hero" className="w-full h-11" asChild>
                         <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
-                          <MessageCircle size={16} className="mr-2" /> Agendar por WhatsApp
+                          <MessageCircle size={16} className="mr-2" />
+                          <EditableText
+                            value={displaySlowWhatsapp}
+                            onSave={async (val) => await updatePageContent.mutateAsync({ [`slow_whatsapp_${lang}`]: val })}
+                            isEditing={isEditingView}
+                            as="span"
+                            className="inline-block"
+                            langLabel={langLabel}
+                          />
                         </a>
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setSlotsRetryTick((v) => v + 1)}>
-                        Reintentar
+                        <EditableText
+                          value={displaySlowRetry}
+                          onSave={async (val) => await updatePageContent.mutateAsync({ [`slow_retry_${lang}`]: val })}
+                          isEditing={isEditingView}
+                          as="span"
+                          className="inline-block"
+                          langLabel={langLabel}
+                        />
                       </Button>
                     </div>
                   </div>
@@ -1007,12 +1145,36 @@ const Reservation = () => {
                     <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4">
                        <CalendarIcon size={24} className="text-amber-600/50" />
                     </div>
-                    <h3 className="font-serif text-lg text-foreground mb-2">Día completo</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                      Lo sentimos, no quedan huecos para este servicio hoy. 
-                    </p>
+                    <div className="mb-2">
+                      <EditableText
+                        value={displayFullTitle}
+                        onSave={async (val) => await updatePageContent.mutateAsync({ [`full_title_${lang}`]: val })}
+                        isEditing={isEditingView}
+                        as="h3"
+                        className="font-serif text-lg text-foreground inline-block"
+                        langLabel={langLabel}
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground leading-relaxed mb-6">
+                      <EditableText
+                        value={displayFullDesc}
+                        onSave={async (val) => await updatePageContent.mutateAsync({ [`full_desc_${lang}`]: val })}
+                        isEditing={isEditingView}
+                        as="p"
+                        className="inline-block"
+                        langLabel={langLabel}
+                      />
+                    </div>
                     <Button variant="outline" size="sm" onClick={() => setStep(2)}>
-                      <ArrowLeft size={14} className="mr-2" /> Elegir otro día
+                      <ArrowLeft size={14} className="mr-2" />
+                      <EditableText
+                        value={displayFullChangeDay}
+                        onSave={async (val) => await updatePageContent.mutateAsync({ [`full_change_day_${lang}`]: val })}
+                        isEditing={isEditingView}
+                        as="span"
+                        className="inline-block"
+                        langLabel={langLabel}
+                      />
                     </Button>
                   </div>
                 ) : (

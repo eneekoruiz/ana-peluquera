@@ -118,18 +118,29 @@ export const isSlotAvailable = (
       if (req.p3 && isOverlap(req.p3, occInterval, buffer)) return true;
       if (req.p2 && isOverlap(req.p2, occInterval, buffer)) return true;
     } else {
-      const occP1Min = Number(occ.phase1_min || occ.phase1Min || occ.duration_min || occ.durationMin || 0);
-      const occP3Min = Number(occ.phase3_min || occ.phase3Min || 0);
-      
-      const occP1 = { start: occStart, end: occStart + occP1Min };
-      const occP3 = occP3Min > 0 ? { start: occEnd - occP3Min, end: occEnd } : null;
+      const hasPhases = !!(occ.phase1_min || occ.phase1Min || occ.duration_min || occ.durationMin);
+      const isAppt = occ.isAppointment !== false && hasPhases;
 
-      if (isOverlap(req.p1, occP1, buffer)) return true;
-      if (occP3 && isOverlap(req.p1, occP3, buffer)) return true;
+      if (isAppt) {
+        const occP1Min = Number(occ.phase1_min || occ.phase1Min || occ.duration_min || occ.durationMin || 0);
+        const occP3Min = Number(occ.phase3_min || occ.phase3Min || 0);
+        
+        const occP1 = { start: occStart, end: occStart + occP1Min };
+        const occP3 = occP3Min > 0 ? { start: occEnd - occP3Min, end: occEnd } : null;
 
-      if (req.p3) {
-        if (isOverlap(req.p3, occP1, buffer)) return true;
-        if (occP3 && isOverlap(req.p3, occP3, buffer)) return true;
+        if (isOverlap(req.p1, occP1, buffer)) return true;
+        if (occP3 && isOverlap(req.p1, occP3, buffer)) return true;
+
+        if (req.p3) {
+          if (isOverlap(req.p3, occP1, buffer)) return true;
+          if (occP3 && isOverlap(req.p3, occP3, buffer)) return true;
+        }
+      } else {
+        // Bloqueo parcial/completo del trabajador (ej. evento personal de Google Calendar o intervalo ocupado)
+        // Ocupa al trabajador todo el tiempo del bloque (desde occStart hasta occEnd) para P1 y P3.
+        const occInterval = { start: occStart, end: occEnd };
+        if (isOverlap(req.p1, occInterval, buffer)) return true;
+        if (req.p3 && isOverlap(req.p3, occInterval, buffer)) return true;
       }
     }
 
