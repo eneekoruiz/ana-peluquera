@@ -35,6 +35,7 @@ export interface AdminSettings {
   today_closed: boolean;
   today_closed_date: string | null;
   vacation_ranges: VacationRange[]; // 🔥 AHORA ES UNA LISTA INFINITA
+  hidden_categories: string[]; // Categorías ocultas en la web pública
 }
 
 const SETTINGS_DOC_REF = doc(db, "settings", "admin");
@@ -64,6 +65,7 @@ export const useAdminSettings = () => {
             today_closed: false,
             today_closed_date: null,
             vacation_ranges: [],
+            hidden_categories: ["masajes"],
           } as AdminSettings;
         }
       } else {
@@ -76,6 +78,11 @@ export const useAdminSettings = () => {
         if (data.vacation_start && data.vacation_end) {
           data.vacation_ranges.push({ start: data.vacation_start, end: data.vacation_end });
         }
+      }
+
+      // 🛠️ Migración: Si no tiene hidden_categories, ocultar masajes por defecto
+      if (!data.hidden_categories) {
+        data.hidden_categories = ["masajes"];
       }
       
       return data as AdminSettings;
@@ -97,6 +104,7 @@ export const useUpdateAdminSettings = () => {
           today_closed: false,
           today_closed_date: null,
           vacation_ranges: [],
+          hidden_categories: ["masajes"],
           ...updates
         });
       } else {
