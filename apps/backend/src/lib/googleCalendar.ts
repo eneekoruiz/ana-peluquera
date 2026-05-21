@@ -127,8 +127,8 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
 
   const res = await calendar.events.list({
     calendarId: "primary", // 🚀 Ahora usamos siempre el calendario principal del usuario logueado
-    timeMin: dayjs(dateRange.start).toISOString(),
-    timeMax: dayjs(dateRange.end).toISOString(),
+    timeMin: dayjs.tz(dateRange.start, TZ).toISOString(),
+    timeMax: dayjs.tz(dateRange.end, TZ).toISOString(),
     singleEvents: true,
   });
 

@@ -53,8 +53,8 @@ export async function GET(request: Request) {
     // 🔥 PRIVACIDAD: Nunca devolvemos datos personales en el GET público
     // Solo devolvemos los bloques ocupados para el calendario.
     const publicSlots = busy.map(slot => ({
-      start: slot.start.toISOString(),
-      end: slot.end.toISOString(),
+      start: slot.start.format(),
+      end: slot.end.format(),
     }));
 
     return NextResponse.json(publicSlots, { headers });
