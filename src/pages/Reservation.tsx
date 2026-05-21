@@ -285,6 +285,15 @@ const Reservation = () => {
   }, [dateStr, submitted, slotsRetryTick]);
 
   const currentStaff = (settings as any)?.staff || [];
+  const SelectedServiceIcon = service ? (iconMap[service.icon_name] || Scissors) : Scissors;
+  const selectedServiceDuration = service?.duration_min || service?.durationMin || 0;
+  const selectedServicePrice = service
+    ? (service.price_cents !== undefined && service.price_cents !== null
+        ? `${service.price_from ? "Desde " : ""}${(service.price_cents / 100).toFixed(0)}€`
+        : service.price
+          ? `${service.price_from ? "Desde " : ""}${service.price}€`
+          : "")
+    : "";
 
   const { occupiedSlots } = useMemo(() => {
     if (!service || !selectedDate || isFetchingSlots) {
@@ -362,6 +371,7 @@ const Reservation = () => {
         client_email: email.trim() || null,
         client_phone: phone.trim(),
         service_id: service.id,
+        service_name: getServiceName(service),
         date: selectedDateStr,
         start_time: selectedTime, 
         end_time: endTimeStr, 
@@ -380,18 +390,49 @@ const Reservation = () => {
       const responseData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        toast.error("Horario no disponible", {
-          description: responseData.error || "Ese horario acaba de ser ocupado. Elige otro."
+        const errorCode = responseData.error || "ERROR_RESERVA";
+
+        if (errorCode === "SLOT_OCCUPIED") {
+          toast.error("Horario no disponible", {
+            description: "Ese hueco acaba de ocuparse. Elige otro y vuelve a intentarlo."
+          });
+          setStep(3);
+          const refresh = await fetchWithTimeout(`${API_BASE_URL}/bookings?date=${selectedDateStr}`);
+          const freshData = await refresh.json().catch(() => []);
+          setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
+            ...slot,
+            start_time: (slot.startTime || slot.start_time || slot.start || "").split('T')[1]?.substring(0, 5) || "00:00",
+            end_time: (slot.endTime || slot.end_time || slot.end || "").split('T')[1]?.substring(0, 5) || "23:59",
+          })));
+          return;
+        }
+
+        if (errorCode === "SERVICE_NOT_FOUND") {
+          toast.error("Servicio no disponible", {
+            description: "Ese servicio ya no existe o no está visible. Recarga la página y vuelve a intentarlo."
+          });
+          setStep(1);
+          return;
+        }
+
+        if (errorCode === "Datos de reserva invalidos" || errorCode === "Datos de reserva inválidos") {
+          toast.error("Hay un problema con los datos", {
+            description: "Revisa nombre, teléfono, servicio y horario antes de confirmar."
+          });
+          return;
+        }
+
+        if (errorCode === "MAINTENANCE_MODE") {
+          toast.error("Agenda en mantenimiento", {
+            description: "La sincronización con Google Calendar no está disponible ahora mismo. Usa WhatsApp para reservar."
+          });
+          return;
+        }
+
+        toast.error("No se ha podido completar la reserva", {
+          description: typeof errorCode === "string" ? errorCode : "Inténtalo de nuevo en unos segundos."
         });
-        setStep(3);
-        const refresh = await fetchWithTimeout(`${API_BASE_URL}/bookings?date=${selectedDateStr}`);
-        const freshData = await refresh.json().catch(() => []);
-        setDayBookings((Array.isArray(freshData) ? freshData : []).map((slot: any) => ({
-          ...slot,
-          start_time: (slot.startTime || slot.start_time || slot.start || "").split('T')[1]?.substring(0, 5) || "00:00",
-          end_time: (slot.endTime || slot.end_time || slot.end || "").split('T')[1]?.substring(0, 5) || "23:59",
-        })));
-        return; 
+        return;
       }
 
       toast.success("¡Cita reservada con éxito!", { description: "Te esperamos en el salón." });
@@ -416,6 +457,17 @@ const Reservation = () => {
 
   const getServiceDescription = (svc: any) => {
     return (lang === "en" ? svc?.description_en : lang === "eu" ? svc?.description_eu : svc?.description_es) || svc?.description_es || svc?.description || "";
+  };
+
+  const getServicePriceLabel = (svc: any) => {
+    if (!svc) return "";
+    if (svc.price_cents !== undefined && svc.price_cents !== null) {
+      return `${svc.price_from ? "Desde " : ""}${(svc.price_cents / 100).toFixed(0)}€`;
+    }
+    if (svc.price) {
+      return `${svc.price_from ? "Desde " : ""}${svc.price}€`;
+    }
+    return "";
   };
 
   if (isCheckingStatus || loadingSettings || loadingServices) {
@@ -723,9 +775,7 @@ const Reservation = () => {
                         const isSelected = selectedServiceId === svc.id;
                         const name = getServiceName(svc);
                         const duration = svc.duration_min || svc.durationMin || 0;
-                        const priceStr = svc.price_cents
-                          ? `${svc.price_from ? "Desde " : ""}${(svc.price_cents / 100).toFixed(0)}€`
-                          : svc.price ? `${svc.price_from ? "Desde " : ""}${svc.price}€` : "";
+                        const priceStr = getServicePriceLabel(svc);
 
                         return (
                           <button
@@ -757,6 +807,56 @@ const Reservation = () => {
                       })}
                     </div>
                   )}
+
+                  <div className="fixed left-1/2 bottom-4 z-30 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 md:bottom-6">
+                    <div className="rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${service ? "bg-charcoal text-cream" : "bg-sand-light/60 text-sand-dark"}`}>
+                          <SelectedServiceIcon size={18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                            {t("booking.summary")}
+                          </p>
+                          {service ? (
+                            <>
+                              <h3 className="mt-1 truncate font-serif text-lg text-foreground">
+                                {getServiceName(service)}
+                              </h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {selectedServiceDuration} min{selectedServicePrice && ` · ${selectedServicePrice}`}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Elige un servicio para ver el resumen y continuar.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-3">
+                        <Button
+                          variant="outline"
+                          className="h-12 flex-1"
+                          disabled={!service || isEditingView}
+                          onClick={() => {
+                            if (!isEditingView) setSelectedServiceId(null);
+                          }}
+                        >
+                          {t("booking.change")}
+                        </Button>
+                        <Button
+                          variant="hero"
+                          className="h-12 flex-1 gap-2"
+                          disabled={!canAdvance() || isEditingView}
+                          onClick={() => setStep(2)}
+                        >
+                          {t("booking.next")} <ArrowRight size={16} />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </ScrollReveal>
@@ -774,6 +874,41 @@ const Reservation = () => {
                   langLabel={langLabel}
                 />
               </div>
+
+              {service && (
+                <div className="mb-6 rounded-2xl border border-border bg-card/90 p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-charcoal text-cream">
+                      <SelectedServiceIcon size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                        {t("booking.selectedService")}
+                      </p>
+                      <p className="truncate font-medium text-foreground">
+                        {getServiceName(service)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedServiceDuration} min{selectedServicePrice && ` · ${selectedServicePrice}`}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={isEditingView}
+                      onClick={() => {
+                        if (!isEditingView) {
+                          setStep(1);
+                          setSelectedTime(null);
+                        }
+                      }}
+                    >
+                      {t("booking.change")}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-center mb-6">
                 <Calendar
@@ -806,6 +941,32 @@ const Reservation = () => {
                   langLabel={langLabel}
                 />
               </div>
+              {service && (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                      {t("booking.selectedService")}
+                    </p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {getServiceName(service)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={isEditingView}
+                    onClick={() => {
+                      if (!isEditingView) {
+                        setStep(1);
+                        setSelectedTime(null);
+                      }
+                    }}
+                  >
+                    {t("booking.change")}
+                  </Button>
+                </div>
+              )}
               <p className="text-center text-xs text-muted-foreground mb-6 capitalize tabular-nums">
                 {selectedDate?.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
               </p>
@@ -889,6 +1050,40 @@ const Reservation = () => {
                   langLabel={langLabel}
                 />
               </div>
+              {service && (
+                <div className="mb-6 rounded-2xl border border-border bg-card/90 p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-charcoal text-cream">
+                      <SelectedServiceIcon size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                        {t("booking.selectedService")}
+                      </p>
+                      <p className="truncate font-medium text-foreground">
+                        {getServiceName(service)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedServiceDuration} min{selectedServicePrice && ` · ${selectedServicePrice}`}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={isEditingView}
+                      onClick={() => {
+                        if (!isEditingView) {
+                          setStep(1);
+                          setSelectedTime(null);
+                        }
+                      }}
+                    >
+                      {t("booking.change")}
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="bg-card rounded-lg p-6 shadow-sm space-y-5">
                 <div>
                   <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
@@ -930,41 +1125,41 @@ const Reservation = () => {
             </ScrollReveal>
           )}
 
-          <ScrollReveal delay={200}>
-            <div className="flex gap-3 mt-8">
-              {step > 1 && (
+          {step > 1 && (
+            <ScrollReveal delay={200}>
+              <div className="flex gap-3 mt-8">
                 <Button variant="outline" size="lg" className="flex-1 h-14 text-base gap-2"
                   disabled={isEditingView}
                   onClick={() => setStep((step - 1) as Step)}>
                   <ArrowLeft size={16} /> {t("booking.back")}
                 </Button>
-              )}
-              {step < totalSteps ? (
-                <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={!canAdvance() || isEditingView || (step === 3 && isDayFull)} 
-                  onClick={() => setStep((step + 1) as Step)}>
-                  {t("booking.next")} <ArrowRight size={16} />
-                </Button>
-              ) : (
-                <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
-                  disabled={!canAdvance() || isSubmitting || isEditingView} onClick={handleSubmit}>
-                  {isSubmitting ? "Procesando..." : <><Check size={16} /> {t("booking.confirm")}</>}
-                </Button>
-              )}
-            </div>
-            {submitTimedOut && step === 4 && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-left animate-in fade-in duration-300">
-                <p className="text-sm text-foreground leading-relaxed mb-3">
-                  ¡Uy! Esto está tardando más de lo normal. Para no hacerte esperar, te agendamos por WhatsApp en un momento.
-                </p>
-                <Button variant="outline" className="w-full" asChild>
-                  <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle size={16} className="mr-2" /> Agendar por WhatsApp
-                  </a>
-                </Button>
+                {step < totalSteps ? (
+                  <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
+                    disabled={!canAdvance() || isEditingView || (step === 3 && isDayFull)} 
+                    onClick={() => setStep((step + 1) as Step)}>
+                    {t("booking.next")} <ArrowRight size={16} />
+                  </Button>
+                ) : (
+                  <Button variant="hero" size="lg" className="flex-1 h-14 text-base gap-2"
+                    disabled={!canAdvance() || isSubmitting || isEditingView} onClick={handleSubmit}>
+                    {isSubmitting ? "Procesando..." : <><Check size={16} /> {t("booking.confirm")}</>}
+                  </Button>
+                )}
               </div>
-            )}
-          </ScrollReveal>
+              {submitTimedOut && step === 4 && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-left animate-in fade-in duration-300">
+                  <p className="text-sm text-foreground leading-relaxed mb-3">
+                    ¡Uy! Esto está tardando más de lo normal. Para no hacerte esperar, te agendamos por WhatsApp en un momento.
+                  </p>
+                  <Button variant="outline" className="w-full" asChild>
+                    <a href={`https://wa.me/${PERSONAL_PHONE}`} target="_blank" rel="noopener noreferrer">
+                      <MessageCircle size={16} className="mr-2" /> Agendar por WhatsApp
+                    </a>
+                  </Button>
+                </div>
+              )}
+            </ScrollReveal>
+          )}
         </div>
       </section>
     </main>
