@@ -325,7 +325,7 @@ const Reservation = () => {
   const categories = [...new Set(dbServices.map((s: any) => normalizeCategory(s.category)))]
     .filter(Boolean)
     .filter((cat) => !hiddenCategories.includes(cat)) as string[];
-  const catLabels: Record<string, string> = { peluqueria: "Peluquería", masajes: "Masajes & Bienestar" };
+  const catLabels: Record<string, string> = { peluqueria: "Peluquería" };
 
   const displayTitle = pageContent?.[`booking_title_${lang}`] || t("booking.title");
   const displaySubtitle = pageContent?.[`booking_subtitle_${lang}`] || t("booking.subtitle");
@@ -828,9 +828,7 @@ const Reservation = () => {
                             onClick={() => {
                               if (!isEditingView) {
                                 setSelectedServiceId(svc.id);
-                                setTimeout(() => {
-                                  document.getElementById('service-confirmation')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }, 50);
+                                setStep(2);
                               }
                             }}
                             className={`flex items-center gap-4 p-5 rounded-lg text-left transition-all duration-200 ${!isEditingView ? 'active:scale-[0.98]' : ''} ${
@@ -917,9 +915,14 @@ const Reservation = () => {
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => { 
-                    if(date && !isEditingView) {
-                      setSelectedDate(date); 
-                      setSelectedTime(null); 
+                    if (!isEditingView) {
+                      if (date) {
+                        setSelectedDate(date); 
+                        setSelectedTime(null); 
+                        setStep(3);
+                      } else if (selectedDate) {
+                        setStep(3);
+                      }
                     }
                   }}
                   disabled={isDateDisabled}
@@ -1021,7 +1024,12 @@ const Reservation = () => {
                         <button
                           key={time}
                           disabled={isOccupied || isEditingView}
-                          onClick={() => setSelectedTime(time)}
+                          onClick={() => {
+                            if (!isEditingView) {
+                              setSelectedTime(time);
+                              setStep(4);
+                            }
+                          }}
                           className={`py-3.5 rounded-lg text-sm font-sans tabular-nums transition-all duration-200 ${!isEditingView ? 'active:scale-95' : ''} ${
                             isOccupied
                               ? "bg-secondary/50 text-muted-foreground/40 cursor-not-allowed line-through"

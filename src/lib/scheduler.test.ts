@@ -116,7 +116,7 @@ describe('Algoritmo Sándwich y Saturación', () => {
 
   it('Caso Límite 7: Restricción de Habilidades', () => {
     const staff: Employee[] = [
-      { id: "ana", name: "Ana", skills: ["peluqueria", "masajes"], priority: 1, schedule: defaultSchedule },
+      { id: "ana", name: "Ana", skills: ["peluqueria", "tratamientos"], priority: 1, schedule: defaultSchedule },
       { id: "refuerzo", name: "Refuerzo", skills: ["peluqueria"], priority: 2, schedule: defaultSchedule }
     ];
 
@@ -125,7 +125,7 @@ describe('Algoritmo Sándwich y Saturación', () => {
     ];
 
 
-    const masaje = { category: "masajes", duration_min: 30, phase1_min: 30, phase2_min: 0, phase3_min: 0 };
+    const masaje = { category: "tratamientos", duration_min: 30, phase1_min: 30, phase2_min: 0, phase3_min: 0 };
     const { occupied } = calculateAvailability(ALL_SLOTS, masaje, dayBookings, staff, date, false, 0);
 
     expect(occupied.has("10:00")).toBe(true);

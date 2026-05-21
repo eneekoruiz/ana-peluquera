@@ -65,7 +65,7 @@ export const useAdminSettings = () => {
             today_closed: false,
             today_closed_date: null,
             vacation_ranges: [],
-            hidden_categories: ["masajes"],
+            hidden_categories: [],
           } as AdminSettings;
         }
       } else {
@@ -80,9 +80,9 @@ export const useAdminSettings = () => {
         }
       }
 
-      // 🛠️ Migración: Si no tiene hidden_categories, ocultar masajes por defecto
+      // 🛠️ Migración: Si no tiene hidden_categories, inicializar vacío
       if (!data.hidden_categories) {
-        data.hidden_categories = ["masajes"];
+        data.hidden_categories = [];
       }
       
       return data as AdminSettings;
@@ -104,7 +104,7 @@ export const useUpdateAdminSettings = () => {
           today_closed: false,
           today_closed_date: null,
           vacation_ranges: [],
-          hidden_categories: ["masajes"],
+          hidden_categories: [],
           ...updates
         });
       } else {
@@ -113,6 +113,7 @@ export const useUpdateAdminSettings = () => {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin_settings"] });
+      qc.invalidateQueries({ queryKey: ["services"] });
       toast.success("Ajustes guardados correctamente");
     },
     onError: (err: Error) => {

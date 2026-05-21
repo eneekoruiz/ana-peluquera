@@ -106,17 +106,28 @@ export const isSlotAvailable = (
       occEnd = dEnd.getHours() * 60 + dEnd.getMinutes();
     }
 
-    const occInterval = { start: occStart, end: occEnd };
     const isTotalBlock = occ.isTotalBlock || occ.type === "block" || occ.isManual;
 
-    // 1. Choque con P1 (Siempre prohibido)
-    if (isOverlap(req.p1, occInterval, buffer)) return true;
+    if (isTotalBlock) {
+      const occInterval = { start: occStart, end: occEnd };
+      if (isOverlap(req.p1, occInterval, buffer)) return true;
+      if (req.p3 && isOverlap(req.p3, occInterval, buffer)) return true;
+      if (req.p2 && isOverlap(req.p2, occInterval, buffer)) return true;
+    } else {
+      const occP1Min = Number(occ.phase1_min || occ.phase1Min || occ.duration_min || occ.durationMin || 0);
+      const occP3Min = Number(occ.phase3_min || occ.phase3Min || 0);
+      
+      const occP1 = { start: occStart, end: occStart + occP1Min };
+      const occP3 = occP3Min > 0 ? { start: occEnd - occP3Min, end: occEnd } : null;
 
-    // 2. Choque con P3 (Siempre prohibido si existe)
-    if (req.p3 && isOverlap(req.p3, occInterval, buffer)) return true;
+      if (isOverlap(req.p1, occP1, buffer)) return true;
+      if (occP3 && isOverlap(req.p1, occP3, buffer)) return true;
 
-    // 3. Choque con P2 (Solo prohibido si es un bloqueo total/manual)
-    if (req.p2 && isTotalBlock && isOverlap(req.p2, occInterval, buffer)) return true;
+      if (req.p3) {
+        if (isOverlap(req.p3, occP1, buffer)) return true;
+        if (occP3 && isOverlap(req.p3, occP3, buffer)) return true;
+      }
+    }
 
     return false;
   });

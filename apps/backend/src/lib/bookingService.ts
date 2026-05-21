@@ -53,10 +53,31 @@ export async function createBooking(data: BookingPayload) {
   const db = getDb();
   const userLang = data.lang === 'en' ? 'en' : data.lang === 'eu' ? 'eu' : 'es';
   
-  // 1. Obtener info del servicio para las fases
+  // 1. Obtener info del servicio para las fases y validar visibilidad
   const serviceDoc = await db.collection('services').doc(data.service_id).get();
   if (!serviceDoc.exists) throw new Error("SERVICE_NOT_FOUND");
   const sInfo = serviceDoc.data()!;
+
+  if (sInfo.visible === false) {
+    throw new Error("SERVICE_NOT_FOUND");
+  }
+
+  const categoryLower = (sInfo.category || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (categoryLower === "masajes") {
+    throw new Error("SERVICE_NOT_FOUND");
+  }
+
+  const settingsDoc = await db.collection("settings").doc("admin").get();
+  if (settingsDoc.exists) {
+    const settingsData = settingsDoc.data() || {};
+    const hiddenCategories = settingsData.hidden_categories || [];
+    const normalize = (str: string) => 
+      str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+    const normHidden = hiddenCategories.map((c: string) => normalize(c));
+    if (normHidden.includes(normalize(sInfo.category))) {
+      throw new Error("SERVICE_NOT_FOUND");
+    }
+  }
   
   const p1Min = Number(sInfo.phase1_min || sInfo.phase1Min || sInfo.duration_min || 0);
   const p2Min = Number(sInfo.phase2_min || sInfo.phase2Min || 0);

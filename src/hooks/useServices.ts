@@ -68,6 +68,19 @@ export const useServices = (includeHidden = false) => {
 
       if (!includeHidden) {
         data = data.filter(s => s.visible !== false); 
+        try {
+          const settingsRef = doc(db, "settings", "admin");
+          const settingsSnap = await getDoc(settingsRef);
+          if (settingsSnap.exists()) {
+            const hiddenCategories = settingsSnap.data().hidden_categories || [];
+            const normalize = (str: string) => 
+              str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+            const normHidden = hiddenCategories.map((c: string) => normalize(c));
+            data = data.filter(s => !normHidden.includes(normalize(s.category)));
+          }
+        } catch (e) {
+          console.error("Error al obtener categorías ocultas para filtrar servicios:", e);
+        }
       }
 
       data.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));

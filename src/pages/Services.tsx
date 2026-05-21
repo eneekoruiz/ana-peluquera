@@ -378,7 +378,7 @@ const Services = () => {
   const hiddenCategories: string[] = (settings as any)?.hidden_categories || [];
 
   const [localOrder, setLocalOrder] = useState<Record<string, DBService[]>>({});
-  const allCategories = ["peluqueria", "masajes"] as const;
+  const allCategories = ["peluqueria"] as const;
   const categories = isEditingView 
     ? allCategories 
     : allCategories.filter(cat => !hiddenCategories.includes(cat));

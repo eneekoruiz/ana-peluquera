@@ -89,7 +89,7 @@ const es = {
     successSubtitle: "Te esperamos en el salón",
     whatsapp: "Contactar por WhatsApp",
     addCalendar: "Añadir a Mi Calendario",
-    categories: { peluqueria: "Peluquería", masajes: "Masajes & Bienestar" },
+    categories: { peluqueria: "Peluquería" },
     faq: {
       title: "Preguntas Frecuentes",
       parking: "¿Dónde aparcar?",
@@ -203,7 +203,7 @@ const en: typeof es = {
     successSubtitle: "We look forward to seeing you",
     whatsapp: "Contact via WhatsApp",
     addCalendar: "Add to My Calendar",
-    categories: { peluqueria: "Hair", masajes: "Massage & Wellness" },
+    categories: { peluqueria: "Hair" },
     faq: {
       title: "Frequently Asked Questions",
       parking: "Where can I park?",
@@ -317,7 +317,7 @@ const eu: typeof es = {
     successSubtitle: "Zure zain gaude",
     whatsapp: "WhatsApp bidez Kontaktatu",
     addCalendar: "Nire Egutegira Gehitu",
-    categories: { peluqueria: "Ile-Apaindegia", masajes: "Masajeak eta Ongizatea" },
+    categories: { peluqueria: "Ile-Apaindegia" },
     faq: {
       title: "Maiz Egiten Diren Galderak",
       parking: "Non aparkatu?",

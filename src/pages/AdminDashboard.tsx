@@ -51,7 +51,7 @@ const DEFAULT_SCHEDULE: WorkDay[] = [
 // ── COMPONENTE GESTOR PERSONAL AVANZADO ──
 const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSettings: any }) => {
   const defaultStaff: Employee[] = [
-    { id: "ana_id", name: "Ana (Responsable)", skills: ["peluqueria", "masajes"], priority: 1, schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)) },
+    { id: "ana_id", name: "Ana (Responsable)", skills: ["peluqueria"], priority: 1, schedule: JSON.parse(JSON.stringify(DEFAULT_SCHEDULE)) },
   ];
 
   const [staff, setStaff] = useState<Employee[]>(settings?.staff || defaultStaff);
@@ -75,7 +75,7 @@ const AdminStaff = ({ settings, updateSettings }: { settings: any, updateSetting
   }, [settings?.staff]);
 
   const daysLabels = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-  const availableSkills = [{ id: "peluqueria", label: "Peluquería" }, { id: "masajes", label: "Masajes" }];
+  const availableSkills = [{ id: "peluqueria", label: "Peluquería" }];
 
   const updateStaffMember = (idx: number, data: Partial<Employee>) => {
     const newStaff = [...staff];

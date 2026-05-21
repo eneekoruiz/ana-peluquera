@@ -168,7 +168,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
                 end: actualEnd, 
                 isAppointment: isAppointment, 
                 sourceEventId: (event.id as string) ?? undefined,
-                isTotalBlock: !isAppointment // 🚀 Si no es una CITA, bloquea a todo el mundo (Ej: Médico)
+                isTotalBlock: summary.includes("CERRADO") || summary.includes("BLOQUEO") || summary.includes("VACACIONES")
             });
         }
       }

@@ -6,10 +6,12 @@ export async function GET(request: Request) {
   const headers = getCorsHeaders(request, 'GET, OPTIONS');
   try {
     const snapshot = await getDb().collection("services").get();
-    const services = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const services = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...(doc.data() as any)
+      }))
+      .filter((s: any) => (s.category || "").toLowerCase() !== "masajes");
 
     return NextResponse.json(services, { headers });
   } catch (error) {
