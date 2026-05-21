@@ -17,6 +17,7 @@ import SortableList from "@/components/cms/SortableList";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // 🔥 Importaciones de Firebase
 import { db } from "@/lib/firebase";
@@ -164,13 +165,25 @@ const EditablePrice = ({ priceCents, onSave }: { priceCents: number | null, onSa
 
 const EditableTiming = ({ service, onSave }: { service: DBService, onSave: (updates: any) => void }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const isCurrentlySandwich = !!(service.phase1_min && service.phase2_min && service.phase3_min);
+  const isCurrentlySandwich = !!(service.phase2_min && service.phase2_min > 0);
   const [isSandwich, setIsSandwich] = useState(isCurrentlySandwich);
 
   const [dur, setDur] = useState(service.duration_min || 30);
   const [p1, setP1] = useState(service.phase1_min || 45);
   const [p2, setP2] = useState(service.phase2_min || 30);
   const [p3, setP3] = useState(service.phase3_min || 30);
+
+  // Sync state when open state or service changes
+  React.useEffect(() => {
+    if (isOpen) {
+      const isS = !!(service.phase2_min && service.phase2_min > 0);
+      setIsSandwich(isS);
+      setDur(service.duration_min || 30);
+      setP1(service.phase1_min || 45);
+      setP2(service.phase2_min || 30);
+      setP3(service.phase3_min || 30);
+    }
+  }, [isOpen, service]);
 
   const handleSave = () => {
     if (isSandwich) {
@@ -191,11 +204,11 @@ const EditableTiming = ({ service, onSave }: { service: DBService, onSave: (upda
     setIsOpen(false);
   };
 
-  if (!isOpen) {
-    return (
+  return (
+    <>
       <div 
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 cursor-pointer hover:bg-sand-light/30 p-1.5 rounded-md transition-colors border border-transparent hover:border-sand-dark/30 border-dashed relative group"
+        className="flex items-center gap-1.5 cursor-pointer hover:bg-sand-light/30 p-1.5 rounded-md transition-colors border border-transparent hover:border-sand-dark/30 border-dashed relative group animate-in fade-in duration-300"
         title="Configurar Tiempos"
       >
         <Clock size={12} className="text-sand-dark" />
@@ -209,73 +222,114 @@ const EditableTiming = ({ service, onSave }: { service: DBService, onSave: (upda
           </>
         )}
       </div>
-    );
-  }
 
-  return (
-    <div className="absolute z-50 left-0 bottom-full mb-2 bg-white border border-border shadow-xl rounded-xl p-4 w-72 animate-in fade-in zoom-in-95">
-      <div className="flex items-center justify-between mb-4 border-b border-border pb-2">
-        <span className="text-sm font-serif font-medium text-foreground">Gestión de Tiempos</span>
-      </div>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-lg text-foreground">Gestión de Tiempos</DialogTitle>
+          </DialogHeader>
 
-      <div className="mb-4">
-        <label className="flex items-center gap-2 text-sm cursor-pointer p-2 bg-sand-light/20 rounded-lg hover:bg-sand-light/40 transition-colors">
-          <input 
-            type="checkbox" 
-            checked={isSandwich} 
-            onChange={(e) => setIsSandwich(e.target.checked)} 
-            className="rounded text-sand-dark focus:ring-sand-dark" 
-          />
-          <span className="font-medium text-foreground">Algoritmo Sándwich</span>
-        </label>
-        <p className="text-[10px] text-muted-foreground mt-1 px-1">
-          Permite atender a otro cliente durante el tiempo de espera (ej. Mechas).
-        </p>
-      </div>
-
-      {isSandwich ? (
-        <div className="space-y-3 bg-card p-3 rounded-lg border border-border">
-          <div className="flex justify-between items-center text-xs">
-            <span className="text-muted-foreground font-medium">1. Aplicación</span>
-            <div className="flex items-center gap-1">
-              <input type="number" min="0" value={p1} onChange={(e)=>setP1(Number(e.target.value))} className="w-14 border border-border rounded px-1.5 py-1 text-right bg-background focus:outline-none focus:border-sand-dark" /> 
-              <span className="text-muted-foreground">min</span>
+          <div className="space-y-4 py-4">
+            <div className="mb-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer p-3 bg-sand-light/20 rounded-lg hover:bg-sand-light/40 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={isSandwich} 
+                  onChange={(e) => setIsSandwich(e.target.checked)} 
+                  className="rounded text-sand-dark focus:ring-sand-dark h-4 w-4" 
+                />
+                <span className="font-medium text-foreground text-sm">Algoritmo Sándwich</span>
+              </label>
+              <p className="text-[11px] text-muted-foreground mt-2 px-1 leading-relaxed">
+                Permite atender a otro cliente durante el tiempo de espera intermedio (por ejemplo, durante el tiempo de exposición de unas mechas o tinte).
+              </p>
             </div>
-          </div>
-          <div className="flex justify-between items-center text-xs">
-            <span className="text-amber-600 font-medium">2. Espera (Libre)</span>
-            <div className="flex items-center gap-1">
-              <input type="number" min="0" value={p2} onChange={(e)=>setP2(Number(e.target.value))} className="w-14 border border-amber-300 rounded px-1.5 py-1 text-right bg-amber-50 focus:outline-none focus:border-amber-500 text-amber-700" /> 
-              <span className="text-muted-foreground">min</span>
-            </div>
-          </div>
-          <div className="flex justify-between items-center text-xs">
-            <span className="text-muted-foreground font-medium">3. Lavado / Fin</span>
-            <div className="flex items-center gap-1">
-              <input type="number" min="0" value={p3} onChange={(e)=>setP3(Number(e.target.value))} className="w-14 border border-border rounded px-1.5 py-1 text-right bg-background focus:outline-none focus:border-sand-dark" /> 
-              <span className="text-muted-foreground">min</span>
-            </div>
-          </div>
-          <div className="pt-2 border-t border-border mt-2 flex justify-between items-center text-sm font-bold text-foreground">
-            <span>Total Bloqueado:</span>
-            <span>{p1 + p2 + p3} min</span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex justify-between items-center text-sm p-3 bg-card rounded-lg border border-border">
-          <span className="text-foreground font-medium">Duración total</span>
-          <div className="flex items-center gap-1">
-            <input type="number" min="0" value={dur} onChange={(e)=>setDur(Number(e.target.value))} className="w-16 border border-border rounded px-2 py-1 text-right bg-background focus:outline-none focus:border-sand-dark font-medium" /> 
-            <span className="text-muted-foreground text-xs">min</span>
-          </div>
-        </div>
-      )}
 
-      <div className="flex gap-2 mt-4">
-        <Button size="sm" className="flex-1 h-9 text-xs font-medium" onClick={handleSave}>Guardar</Button>
-        <Button variant="outline" size="sm" className="flex-1 h-9 text-xs font-medium" onClick={() => setIsOpen(false)}>Cancelar</Button>
-      </div>
-    </div>
+            {isSandwich ? (
+              <div className="space-y-4 bg-card p-4 rounded-xl border border-border">
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-foreground">1. Aplicación / Inicio</span>
+                    <span className="text-[10px] text-muted-foreground">Trabajo activo inicial</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      value={p1} 
+                      onChange={(e)=>setP1(Number(e.target.value))} 
+                      className="w-16 border border-border rounded-lg px-2 py-1.5 text-right bg-background focus:outline-none focus:border-sand-dark focus:ring-1 focus:ring-sand-dark text-sm" 
+                    /> 
+                    <span className="text-muted-foreground text-xs font-medium">min</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-amber-600">2. Espera / Procesado</span>
+                    <span className="text-[10px] text-muted-foreground">Exposición libre para otra reserva</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      value={p2} 
+                      onChange={(e)=>setP2(Number(e.target.value))} 
+                      className="w-16 border border-amber-300 rounded-lg px-2 py-1.5 text-right bg-amber-50/50 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-amber-700 text-sm font-medium" 
+                    /> 
+                    <span className="text-muted-foreground text-xs font-medium">min</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-foreground">3. Lavado / Acabado</span>
+                    <span className="text-[10px] text-muted-foreground">Trabajo activo final</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      value={p3} 
+                      onChange={(e)=>setP3(Number(e.target.value))} 
+                      className="w-16 border border-border rounded-lg px-2 py-1.5 text-right bg-background focus:outline-none focus:border-sand-dark focus:ring-1 focus:ring-sand-dark text-sm" 
+                    /> 
+                    <span className="text-muted-foreground text-xs font-medium">min</span>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-border mt-3 flex justify-between items-center text-sm font-bold text-foreground">
+                  <span>Duración total bloqueada:</span>
+                  <span className="text-sand-dark font-mono text-base">{p1 + p2 + p3} min</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center p-4 bg-card rounded-xl border border-border">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-foreground">Duración total</span>
+                  <span className="text-[10px] text-muted-foreground">Servicio continuo sin cortes</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    value={dur} 
+                    onChange={(e)=>setDur(Number(e.target.value))} 
+                    className="w-20 border border-border rounded-lg px-2.5 py-1.5 text-right bg-background focus:outline-none focus:border-sand-dark focus:ring-1 focus:ring-sand-dark font-medium text-sm" 
+                  /> 
+                  <span className="text-muted-foreground text-xs font-medium">min</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-4 justify-end">
+            <Button variant="outline" size="sm" className="h-9 px-4 text-xs font-medium" onClick={() => setIsOpen(false)}>Cancelar</Button>
+            <Button size="sm" className="h-9 px-4 text-xs font-medium" onClick={handleSave}>Guardar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
