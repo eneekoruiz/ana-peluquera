@@ -189,7 +189,6 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
                   isTotalBlock: !isAppointment 
               });
           }
-          }
         }
         eventCurr = eventCurr.add(1, 'day');
       }
