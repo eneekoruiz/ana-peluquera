@@ -82,7 +82,11 @@ export async function createBooking(data: BookingPayload) {
   const p1Min = Number(sInfo.phase1_min || sInfo.phase1Min || sInfo.duration_min || 0);
   const p2Min = Number(sInfo.phase2_min || sInfo.phase2Min || 0);
   const p3Min = Number(sInfo.phase3_min || sInfo.phase3Min || 0);
-  const serviceName = sInfo.name || "Servicio";
+  
+  // Priorizar etiqueta localizada según el idioma de la reserva
+  const serviceName = (userLang === 'en' ? sInfo.label_en : userLang === 'eu' ? sInfo.label_eu : sInfo.label_es) 
+    || sInfo.name 
+    || "Servicio";
 
   const sMin = timeToMinutes(data.start_time);
   const p1Start = sMin;

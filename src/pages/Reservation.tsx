@@ -481,7 +481,10 @@ const Reservation = () => {
     }
   };
 
-  const getServiceName = (svc: any) => svc?.name || getLocalizedLabel(svc, lang) || svc?.id;
+  const getServiceName = (svc: any) => {
+    if (!svc) return "";
+    return getLocalizedLabel(svc, lang) || svc.name || svc.id;
+  };
 
   const getServiceDescription = (svc: any) => {
     return (lang === "en" ? svc?.description_en : lang === "eu" ? svc?.description_eu : svc?.description_es) || svc?.description_es || svc?.description || "";
@@ -649,48 +652,64 @@ const Reservation = () => {
               />
             </div>
 
-            <div className="bg-card rounded-xl p-6 shadow-md border border-border text-left mb-8 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-sand-dark"></div>
+            <div className="bg-card rounded-3xl p-8 shadow-xl shadow-sand-light/20 border border-border/50 text-left mb-8 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-sand-light via-sand-dark to-sand-light"></div>
               
-              <div className="border-b border-border pb-4 mb-4">
-                <h3 className="font-serif text-lg text-foreground capitalize">{name}</h3>
-                <p className="text-xs text-muted-foreground mt-1">{email} • {phone}</p>
+              <div className="border-b border-border/50 pb-6 mb-6">
+                <h3 className="font-serif text-2xl text-foreground capitalize tracking-tight">{name}</h3>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                  {email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail size={12} /> {email}</p>}
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Phone size={12} /> {phone}</p>
+                </div>
               </div>
 
               <div className="space-y-4">
-                <div className="flex justify-between text-sm items-center">
+                <div className="group flex justify-between text-sm items-center py-1">
                   <span className="text-muted-foreground flex items-center gap-2">
-                    <Scissors size={14} className="text-sand-dark" /> Servicio
+                    <div className="w-8 h-8 rounded-full bg-sand-light/30 flex items-center justify-center text-sand-dark">
+                      <Scissors size={14} />
+                    </div>
+                    {t("booking.service")}
                   </span>
-                  <span className="text-foreground font-medium text-right max-w-[60%] truncate">
+                  <span className="text-foreground font-semibold text-right max-w-[60%] truncate">
                     {getServiceName(service)}
                   </span>
                 </div>
 
-                <div className="flex justify-between text-sm items-center">
+                <div className="group flex justify-between text-sm items-center py-1">
                   <span className="text-muted-foreground flex items-center gap-2">
-                    <CalendarIcon size={14} className="text-sand-dark" /> Fecha
+                    <div className="w-8 h-8 rounded-full bg-sand-light/30 flex items-center justify-center text-sand-dark">
+                      <CalendarIcon size={14} />
+                    </div>
+                    {t("booking.date")}
                   </span>
-                  <span className="text-foreground font-medium capitalize tabular-nums">
-                    {selectedDate?.toLocaleDateString("es-ES", { weekday: 'long', day: "numeric", month: "long" })}
+                  <span className="text-foreground font-semibold capitalize tabular-nums">
+                    {selectedDate?.toLocaleDateString(lang === 'eu' ? 'eu-ES' : lang === 'en' ? 'en-GB' : 'es-ES', { weekday: 'long', day: "numeric", month: "long" })}
                   </span>
                 </div>
 
-                <div className="flex justify-between text-sm items-center">
+                <div className="group flex justify-between text-sm items-center py-1">
                   <span className="text-muted-foreground flex items-center gap-2">
-                    <Clock size={14} className="text-sand-dark" /> Horario
+                    <div className="w-8 h-8 rounded-full bg-sand-light/30 flex items-center justify-center text-sand-dark">
+                      <Clock size={14} />
+                    </div>
+                    {t("booking.time")}
                   </span>
                   <div className="text-right">
-                    <span className="text-foreground font-medium tabular-nums">{selectedTime} - {endTimeStr}</span>
+                    <span className="text-foreground font-semibold tabular-nums">{selectedTime} - {endTimeStr}</span>
                     <span className="block text-[10px] text-muted-foreground mt-0.5">({duration} min)</span>
                   </div>
                 </div>
 
-                <div className="flex justify-between text-sm items-center pt-2 border-t border-border">
-                  <span className="text-muted-foreground font-medium">Precio</span>
-                  <span className="text-foreground font-bold text-lg tabular-nums">
-                    {service?.price ? `${service.price}€` : "Consultar precio"}
-                  </span>
+                <div className="flex justify-between items-center pt-6 border-t border-border/50">
+                  <span className="text-muted-foreground font-medium text-sm">{t("booking.price")}</span>
+                  <div className="text-right">
+                    <span className="text-foreground font-bold text-2xl tracking-tighter tabular-nums">
+                      {service?.price_cents !== undefined && service.price_cents !== null
+                        ? `${(service.price_cents / 100).toFixed(0)}€`
+                        : service.price ? `${service.price}€` : "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1080,7 +1099,7 @@ const Reservation = () => {
                 </div>
               )}
               <p className="text-center text-xs text-muted-foreground mb-6 capitalize tabular-nums">
-                {selectedDate?.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
+                {selectedDate?.toLocaleDateString(lang === 'eu' ? 'eu-ES' : lang === 'en' ? 'en-GB' : 'es-ES', { weekday: "long", day: "numeric", month: "long" })}
               </p>
               
               <div className="min-h-[260px] flex flex-col">
@@ -1256,38 +1275,41 @@ const Reservation = () => {
                   </div>
                 </div>
               )}
-              <div className="bg-card rounded-lg p-6 shadow-sm space-y-5">
-                <div>
-                  <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
-                    <User size={14} /> {t("booking.name")}
+              <div className="bg-card rounded-2xl p-8 shadow-sm border border-border/50 space-y-6">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[10px] font-sans uppercase tracking-[0.2em] text-sand-dark font-semibold">
+                    <User size={13} /> {t("booking.name")}
                   </label>
                   <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={isEditingView}
-                    className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                    className="w-full h-12 px-4 bg-background border border-border/60 rounded-xl text-base font-sans text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-sand-light transition-all"
                     placeholder={t("booking.namePlaceholder")} autoComplete="name" />
                 </div>
-                <div>
-                  <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
-                    <Phone size={14} /> {t("booking.phone")}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[10px] font-sans uppercase tracking-[0.2em] text-sand-dark font-semibold">
+                    <Phone size={13} /> {t("booking.phone")}
                   </label>
                   <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isEditingView}
-                    className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                    className="w-full h-12 px-4 bg-background border border-border/60 rounded-xl text-base font-sans text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-sand-light transition-all"
                     placeholder="600 000 000" autoComplete="tel" />
                 </div>
-                <div>
-                  <label className="flex items-center gap-2 text-xs font-sans uppercase tracking-wide text-muted-foreground mb-2">
-                    <Mail size={14} /> Email
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[10px] font-sans uppercase tracking-[0.2em] text-sand-dark font-semibold">
+                    <Mail size={13} /> {t("booking.email")}
                   </label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isEditingView}
-                    className="w-full h-14 px-4 bg-background border border-border rounded-lg text-base font-sans text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                    className="w-full h-12 px-4 bg-background border border-border/60 rounded-xl text-base font-sans text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-sand-light transition-all"
                     placeholder="tu@email.com" autoComplete="email" />
                 </div>
                 <div className="pt-2">
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)} disabled={isEditingView}
-                      className="mt-1 w-5 h-5 rounded border-border text-sand-dark focus:ring-ring shrink-0" />
+                  <label className="flex items-start gap-4 cursor-pointer group">
+                    <div className="relative flex items-center mt-1">
+                      <input type="checkbox" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)} disabled={isEditingView}
+                        className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-border transition-all checked:bg-charcoal" />
+                      <Check className="pointer-events-none absolute left-1 top-1 h-3 w-3 text-white opacity-0 peer-checked:opacity-100" />
+                    </div>
                     <span className="text-xs text-muted-foreground leading-relaxed">
                       {t("booking.privacyText")}{" "}
-                      <Link to="/privacidad" target="_blank" className="underline text-foreground hover:text-sand-dark transition-colors">
+                      <Link to="/privacidad" target="_blank" className="underline text-foreground hover:text-sand-dark transition-colors font-medium">
                         {t("booking.privacyLink")}
                       </Link>.
                     </span>

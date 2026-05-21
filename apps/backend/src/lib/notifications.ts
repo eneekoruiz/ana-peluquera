@@ -4,6 +4,14 @@
 
 import { Resend } from "resend";
 import { getFirebaseAdminApp, getDb } from "./firebaseAdmin";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+import "dayjs/locale/es";
+import "dayjs/locale/eu";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder_key_to_prevent_init_crash");
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eneko-ruiz.vercel.app";
@@ -58,20 +66,12 @@ function escapeHtml(text: string): string {
 
 function formatDateES(iso: string, lang = 'es'): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  const locale = lang === 'eu' ? 'eu-ES' : lang === 'en' ? 'en-US' : 'es-ES';
   
-  const fecha = d.toLocaleDateString(locale, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const hora = d.toLocaleTimeString(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${fecha} - ${hora}`;
+  const d = dayjs(iso).tz("Europe/Madrid");
+  const locale = lang === 'eu' ? 'eu' : lang === 'en' ? 'en' : 'es';
+  
+  // Formato: viernes, 22 de mayo de 2026 - 09:00
+  return d.locale(locale).format("dddd, D [de] MMMM [de] YYYY - HH:mm");
 }
 
 function normalizePhone(phone: string): string {

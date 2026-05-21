@@ -51,10 +51,12 @@ export async function GET(request: Request) {
     const { busy } = await getBusySlots({ start, end });
     
     // 🔥 PRIVACIDAD: Nunca devolvemos datos personales en el GET público
-    // Solo devolvemos los bloques ocupados para el calendario.
+    // Devolvemos los bloques ocupados con metadata técnica para el scheduler.
     const publicSlots = busy.map(slot => ({
       start: slot.start.format(),
       end: slot.end.format(),
+      isAppointment: slot.isAppointment,
+      isTotalBlock: slot.isTotalBlock,
     }));
 
     return NextResponse.json(publicSlots, { headers });

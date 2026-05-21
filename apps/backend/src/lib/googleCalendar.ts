@@ -88,13 +88,15 @@ export async function getGoogleCalendarClient() {
 
 
 function parseGoogleEvent(startObj: any, endObj: any): { start: dayjs.Dayjs, end: dayjs.Dayjs } | null {
-  if (!startObj && !endObj) return null;
-  if (startObj?.date) {
+  if (!startObj || !endObj) return null;
+  if (startObj.date) {
     const startD = dayjs.tz(startObj.date, TZ).startOf('day');
-    const endD = endObj?.date ? dayjs.tz(endObj.date, TZ).subtract(1, 'second') : startD.endOf('day');
+    // Si es un evento de todo el día, Google pone el end en el día siguiente a las 00:00
+    // Lo restamos un segundo para que se quede en el día que toca
+    const endD = dayjs.tz(endObj.date, TZ).subtract(1, 'second');
     return { start: startD, end: endD };
   }
-  if (startObj?.dateTime && endObj?.dateTime) {
+  if (startObj.dateTime && endObj.dateTime) {
     return { start: dayjs(startObj.dateTime).tz(TZ), end: dayjs(endObj.dateTime).tz(TZ) };
   }
   return null;
@@ -121,7 +123,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
     let curr = dayjs(dateRange.start).tz(TZ).startOf('day');
     const limit = dayjs(dateRange.end).tz(TZ).endOf('day');
     
-    while (curr.valueOf() <= limit.valueOf()) {
+    while (curr.isBefore(limit) || curr.isSame(limit, 'day')) {
       intervalsByDay[curr.format('YYYY-MM-DD')] = [];
       curr = curr.add(1, 'day');
     }
@@ -131,15 +133,20 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       timeMin: dayjs.tz(dateRange.start, TZ).toISOString(),
       timeMax: dayjs.tz(dateRange.end, TZ).toISOString(),
       singleEvents: true,
+      maxResults: 2500, // Aseguramos traer todos los eventos
     });
 
     const rawEventIds: string[] = []; 
 
-    for (const event of res.data.items ?? []) {
-      if (event.id) rawEventIds.push(event.id); 
+      for (const event of res.data.items ?? []) {
+        // Omitimos eventos explícitamente rechazados o "provisionales" si es necesario
+        if (event.status === 'cancelled') continue;
+        if (event.transparency === 'transparent') continue; // Opcional: ignorar eventos marcados como "Disponible" (Free)
+        
+        if (event.id) rawEventIds.push(event.id); 
 
-      const summary = (event.summary || "").toUpperCase();
-      const isAppointment = summary.includes("CITA");
+        const summary = (event.summary || "").toUpperCase();
+        const isAppointment = summary.includes("CITA");
 
       const parsed = parseGoogleEvent(event.start, event.end);
       if (!parsed) continue;
@@ -150,7 +157,7 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
       let eventCurr = parsed.start.clone().startOf('day');
       const eventEnd = parsed.end.clone().endOf('day');
 
-      while (eventCurr.valueOf() <= eventEnd.valueOf()) {
+      while (eventCurr.isBefore(eventEnd) || eventCurr.isSame(eventEnd, 'day')) {
         const dKey = eventCurr.format('YYYY-MM-DD');
         if (intervalsByDay[dKey]) {
           
@@ -161,16 +168,27 @@ export async function getBusySlots(dateRange: CalendarDateRange): Promise<{ busy
           const actualEnd = parsed.end.isBefore(dayEnd) ? parsed.end : dayEnd;
 
           if (isOurAppt && priv.phase1Min && priv.phase3Min) {
-              intervalsByDay[dKey].push({ start: parsed.start, end: parsed.start.add(Number(priv.phase1Min), 'minute'), isAppointment: true, isTotalBlock: false });
-              intervalsByDay[dKey].push({ start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), end: parsed.end, isAppointment: true, isTotalBlock: false });
+              intervalsByDay[dKey].push({ 
+                  start: parsed.start, 
+                  end: parsed.start.add(Number(priv.phase1Min), 'minute'), 
+                  isAppointment: true, 
+                  isTotalBlock: false 
+              });
+              intervalsByDay[dKey].push({ 
+                  start: parsed.end.subtract(Number(priv.phase3Min), 'minute'), 
+                  end: parsed.end, 
+                  isAppointment: true, 
+                  isTotalBlock: false 
+              });
           } else {
               intervalsByDay[dKey].push({ 
                   start: actualStart, 
                   end: actualEnd, 
                   isAppointment: isAppointment, 
                   sourceEventId: (event.id as string) ?? undefined,
-                  isTotalBlock: summary.includes("CERRADO") || summary.includes("BLOQUEO") || summary.includes("VACACIONES")
+                  isTotalBlock: !isAppointment 
               });
+          }
           }
         }
         eventCurr = eventCurr.add(1, 'day');
