@@ -184,4 +184,35 @@ describe('Algoritmo Sándwich y Saturación', () => {
     expect(occupied.has("10:30")).toBe(false);
   });
 
+  it('Caso Límite 10: La phase2 (tiempo de espera) NO bloquea otras citas', () => {
+    const onlyAna: Employee[] = [{ id: "ana", name: "Ana", skills: ["peluqueria"], priority: 1, schedule: defaultSchedule }];
+    
+    // Reserva con un tiempo de espera (phase2) largo
+    const dayBookings = [
+      { 
+        employee_id: "ana", 
+        status: "confirmed", 
+        start_time: "10:00", 
+        end_time: "11:30", 
+        phase1_min: 30, // 10:00 - 10:30 (Ocupada)
+        phase2_min: 30, // 10:30 - 11:00 (Libre, esperando color)
+        phase3_min: 30, // 11:00 - 11:30 (Ocupada lavando/peinando)
+        isAppointment: true 
+      }
+    ];
+
+    // Un servicio corto de 30 mins
+    const corte = { category: "peluqueria", duration_min: 30, phase1_min: 30, phase2_min: 0, phase3_min: 0 };
+    const { occupied } = calculateAvailability(ALL_SLOTS, corte, dayBookings, onlyAna, date, false, 0);
+
+    // 10:00 choca con phase1 -> BLOQUEADO
+    expect(occupied.has("10:00")).toBe(true);
+    // 10:30 encaja PERFECTO en la phase2 (10:30-11:00) -> LIBRE
+    expect(occupied.has("10:30")).toBe(false);
+    // 10:45 solapa con la phase3 (que empieza a las 11:00) -> BLOQUEADO
+    expect(occupied.has("10:45")).toBe(true);
+    // 11:00 choca con phase3 -> BLOQUEADO
+    expect(occupied.has("11:00")).toBe(true);
+  });
+
 });

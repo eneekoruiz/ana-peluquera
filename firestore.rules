@@ -5,7 +5,6 @@ service cloud.firestore {
     // Función para verificar si el usuario es administrador
     function isAdmin() {
       return request.auth != null && (
-        request.auth.token.email == "ana@tudominio.com" || 
         request.auth.token.email == "eneekoruiz@gmail.com"
       );
     }

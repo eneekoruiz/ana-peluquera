@@ -13,6 +13,9 @@ export async function requireAdminRequest(request: Request) {
     idToken = authHeader.split("Bearer ")[1];
   } else {
     try {
+      // ⚠️ NOTA: Leer el token desde los parámetros de la URL (?token=...) es necesario 
+      // para escenarios donde el navegador hace una redirección completa (ej. window.location.href 
+      // hacia /api/auth/google) ya que no es posible incluir cabeceras Authorization en ese tipo de peticiones.
       const url = new URL(request.url, "http://localhost");
       idToken = url.searchParams.get("token");
     } catch (e) {

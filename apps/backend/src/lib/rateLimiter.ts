@@ -17,14 +17,18 @@ export async function isRateLimited(request: Request, scope: string, maxRequests
   const key = `ratelimit:${scope}:${ip}`;
   
   try {
-    if (process.env.KV_URL) {
+    if (process.env.KV_URL || process.env.KV_REST_API_URL) {
       const current = await kv.incr(key);
       if (current === 1) {
         await kv.expire(key, 60);
       }
       return current > maxRequests;
     } else {
-      console.warn("⚠️ KV_URL no configurada. Usando fallback de memoria.");
+      if (process.env.NODE_ENV === 'production') {
+        console.warn("⚠️ AVISO CLARO: Entorno de producción sin KV_URL o KV_REST_API_URL configurado. El rate limiter usará memoria, lo cual no es efectivo en Vercel/Serverless.");
+      } else {
+        console.warn("⚠️ KV no configurado. Usando fallback de memoria local.");
+      }
     }
   } catch (err) {
     console.error("❌ Error en Vercel KV (Rate Limit):", err);

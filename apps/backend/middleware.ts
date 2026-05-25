@@ -32,8 +32,8 @@ export default async function middleware(req: NextRequest) {
     return new NextResponse(null, { status: 204, headers: corsHeaders });
   }
 
-  // Permitimos siempre la página de login (frontend)
-  if (pathname === "/portal-reservado") {
+  // Permitimos siempre la página de login (frontend) y el endpoint de estado del calendario (público)
+  if (pathname === "/portal-reservado" || pathname === "/api/admin/calendar/status") {
     return NextResponse.next();
   }
 
