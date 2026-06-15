@@ -18,6 +18,10 @@ Booking and CMS platform for AG Beauty Salon in Donostia.
 - Google Calendar API
 - Resend
 
+## Social preview
+
+GitHub social preview asset: `public/og.png`
+
 ## Links
 
 - DeepWiki: https://deepwiki.com/eneekoruiz/ana-peluquera
