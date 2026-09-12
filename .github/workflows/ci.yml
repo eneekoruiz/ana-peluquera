@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  GIT_LFS_SKIP_SMUDGE: '1'
+
 jobs:
   verify:
     runs-on: ubuntu-latest
